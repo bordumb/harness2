@@ -1,7 +1,9 @@
 # Mac Agent recall and answer quality
 
-Status: benchmark adapter and controlled recursion checks implemented; production
-execution backend, live development and frozen promotion remain in progress.
+Status: benchmark adapter, controlled recursion checks and restricted proposer
+reads implemented. The Mac Agent backend has two actual development recall
+baselines; warehouse cases, actual model-backed recursion and frozen promotion
+remain in progress.
 
 `harness2.integrations.answer_quality.AnswerQualityAdapter` implements the existing
 core `BenchmarkAdapter` contract. Use existing recursion, selection and library
@@ -31,3 +33,12 @@ The controlled backend/proposer test exercises existing propose/probe/compose co
 with four rollouts and no judge feedback. It is not a live inference or improvement
 claim. The previous Mac Agent HTTP adapter and schema-2 preflight/binding checks
 remain authoritative; do not replace them with a direct model call.
+
+The Codex proposer channel uses a unique process-local permission profile, not
+workspace-write's default broad read access. Minimal platform reads and workspace
+writes are allowed; sibling private data and command network access are denied.
+The installed protocol is checked against
+[official permission profiles](https://learn.chatgpt.com/docs/permissions).
+Native direct/symlink canary denials and approved read/write controls passed on
+Codex 0.157.1 without inference. Older unsupported permission transports fail
+closed; do not fall back to unrestricted execution or edit global settings.

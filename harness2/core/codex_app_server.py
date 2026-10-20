@@ -19,6 +19,7 @@ from __future__ import annotations
 import json
 import os
 import queue
+import secrets
 import shutil
 import subprocess
 import threading
@@ -39,7 +40,8 @@ class CodexAppServerClient:
 
     Authentication remains inside Codex's configured home. The client never reads, copies,
     logs, or exports auth files or bearer tokens. Every turn verifies ChatGPT account mode,
-    disables provider fallback, uses a workspace-write sandbox with network access disabled,
+    disables provider fallback, restricts reads/writes to the evidence workspace
+    (plus curated platform read defaults), disables tool network access,
     and rejects app-server requests that this noninteractive harness cannot authorize.
     """
 
@@ -51,16 +53,24 @@ class CodexAppServerClient:
         executable: str | None = None,
         codex_home: str | None = None,
         timeout: int = 3600,
+        event_log: Path | None = None,
     ):
         self.model = model
         self.effort = effort
-        self.executable = executable or os.environ.get("HARNESS2_CODEX_EXECUTABLE") or shutil.which("codex")
-        self.codex_home = codex_home or os.environ.get("HARNESS2_CODEX_HOME") or os.environ.get("CODEX_HOME")
+        self.executable = (
+            executable or os.environ.get("HARNESS2_CODEX_EXECUTABLE") or shutil.which("codex")
+        )
+        self.codex_home = (
+            codex_home or os.environ.get("HARNESS2_CODEX_HOME") or os.environ.get("CODEX_HOME")
+        )
         self.timeout = max(1, int(timeout))
         self.proc: subprocess.Popen[str] | None = None
         self.messages: queue.Queue[Any] = queue.Queue()
         self._next_id = 0
         self._mcp_servers: dict[str, Any] = {}
+        self.permission_profile = "harness2-evidence-" + secrets.token_hex(8)
+        self._deferred: list[dict[str, Any]] = []
+        self._event_log = event_log.open("x", encoding="utf-8") if event_log else None
 
     def _env(self) -> dict[str, str]:
         # Keep only the environment needed to locate Codex and its existing login. In
@@ -89,6 +99,8 @@ class CodexAppServerClient:
                 "app-server",
                 "--listen",
                 "stdio://",
+                "-c",
+                "permissions." + self.permission_profile + "=" + self.permission_profile_toml(),
                 "-c",
                 'model_provider="openai"',
                 "-c",
@@ -159,6 +171,17 @@ class CodexAppServerClient:
         if isinstance(servers, dict):
             self._mcp_servers = {name: {"enabled": False} for name in servers}
 
+    @staticmethod
+    def permission_profile_toml() -> str:
+        # A fresh, process-local named profile avoids changing user config or
+        # inheriting a same-name policy. New Codex versions reject the former
+        # workspaceWrite.readOnlyAccess transport field instead of applying it.
+        return (
+            '{extends=":workspace",filesystem={":root"="deny",":minimal"="read",'
+            '":workspace_roots"="write",":tmpdir"="deny",":slash_tmp"="deny"},'
+            "network={enabled=false}}"
+        )
+
     def run(self, *, cwd: Path, mission: str, system: str = "") -> tuple[str, dict[str, int]]:
         self.start(cwd=cwd)
         started = self._request(
@@ -172,8 +195,7 @@ class CodexAppServerClient:
                 "runtimeWorkspaceRoots": [str(cwd.resolve())],
                 "approvalPolicy": "never",
                 "approvalsReviewer": "user",
-                "sandbox": "workspace-write",
-                "environments": [],
+                "permissions": self.permission_profile,
                 "baseInstructions": system,
                 "config": {
                     "web_search": "disabled",
@@ -196,7 +218,11 @@ class CodexAppServerClient:
             },
         )
         thread_id = started.get("thread", {}).get("id")
-        if not thread_id or started.get("model") != self.model or started.get("modelProvider") != "openai":
+        if (
+            not thread_id
+            or started.get("model") != self.model
+            or started.get("modelProvider") != "openai"
+        ):
             raise CodexAppServerError("Codex rejected the requested model or thread configuration.")
 
         turn_started = self._request(
@@ -206,8 +232,7 @@ class CodexAppServerClient:
                 "input": [{"type": "text", "text": mission}],
                 "effort": self.effort,
                 "approvalPolicy": "never",
-                "sandboxPolicy": {"type": "workspaceWrite", "writableRoots": [str(cwd.resolve())], "networkAccess": False},
-                "environments": [],
+                "permissions": self.permission_profile,
             },
         )
         turn_id = turn_started.get("turn", {}).get("id")
@@ -218,13 +243,22 @@ class CodexAppServerClient:
         usage = {"input_tokens": 0, "output_tokens": 0}
         deadline = time.monotonic() + self.timeout
         while True:
-            message = self._receive(deadline)
+            message = self._deferred.pop(0) if self._deferred else self._receive(deadline)
             if message is _EOF:
                 raise CodexAppServerError("Codex app-server exited before completing the turn.")
             method = message.get("method")
             params = message.get("params", {})
             if "id" in message and method:
                 self._reject_request(message["id"])
+                continue
+            if method == "account/updated":
+                account = params.get("account", {})
+                auth_mode = account.get("type") if isinstance(account, dict) else None
+                auth_mode = auth_mode or params.get("authMode")
+                if auth_mode and auth_mode != "chatgpt":
+                    raise CodexAppServerError(
+                        "Codex sign-in changed during the turn; no API fallback was used."
+                    )
                 continue
             if params.get("threadId") != thread_id:
                 continue
@@ -236,14 +270,6 @@ class CodexAppServerClient:
                 total = params.get("tokenUsage", {}).get("total", {})
                 usage["input_tokens"] = int(total.get("inputTokens") or 0)
                 usage["output_tokens"] = int(total.get("outputTokens") or 0)
-            elif method == "account/updated":
-                account = params.get("account", {})
-                auth_mode = account.get("type") if isinstance(account, dict) else None
-                auth_mode = auth_mode or params.get("authMode")
-                if auth_mode and auth_mode != "chatgpt":
-                    raise CodexAppServerError(
-                        "Codex sign-in changed during the turn; no API fallback was used."
-                    )
             elif method == "turn/completed" and params.get("turn", {}).get("id") == turn_id:
                 status = params.get("turn", {}).get("status")
                 if status != "completed":
@@ -264,6 +290,12 @@ class CodexAppServerClient:
             message = self._receive(deadline)
             if message is _EOF:
                 raise CodexAppServerError(f"Codex exited before replying to {method}.")
+            if message.get("method"):
+                if "id" in message:
+                    self._reject_request(message["id"])
+                else:
+                    self._deferred.append(message)
+                continue
             if message.get("id") != request_id:
                 continue
             if "error" in message:
@@ -271,7 +303,9 @@ class CodexAppServerClient:
                 raise CodexAppServerError(f"Codex app-server {method} failed: {detail}")
             result = message.get("result")
             if not isinstance(result, dict):
-                raise CodexAppServerError(f"Codex app-server {method} returned an invalid response.")
+                raise CodexAppServerError(
+                    f"Codex app-server {method} returned an invalid response."
+                )
             return result
 
     def _write(self, message: dict[str, Any]) -> None:
@@ -301,6 +335,13 @@ class CodexAppServerClient:
             raise CodexAppServerError(f"Codex app-server timed out after {self.timeout}s.") from exc
         if isinstance(message, dict) and message.get("_protocol_error"):
             raise CodexAppServerError("Codex app-server returned malformed JSON.")
+        if (
+            self._event_log
+            and isinstance(message, dict)
+            and message.get("method", "").startswith(("item/", "turn/"))
+        ):
+            self._event_log.write(json.dumps(message, ensure_ascii=False) + "\n")
+            self._event_log.flush()
         return message
 
     def _reject_request(self, request_id: Any) -> None:
@@ -312,6 +353,9 @@ class CodexAppServerClient:
         )
 
     def close(self) -> None:
+        if self._event_log:
+            self._event_log.close()
+            self._event_log = None
         if not self.proc:
             return
         if self.proc.stdin:

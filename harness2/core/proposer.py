@@ -30,6 +30,7 @@ import subprocess
 import tempfile
 import threading
 import time
+import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -149,8 +150,10 @@ class Proposer:
             return cached
 
         wall = int(timeout or self.spec.timeout)
-        tries = 1 if self.spec.kind == "codex_app_server" else max(
-            1, int(self.attempts if max_attempts is None else max_attempts)
+        tries = (
+            1
+            if self.spec.kind == "codex_app_server"
+            else max(1, int(self.attempts if max_attempts is None else max_attempts))
         )
         last = ""
         spent_usd = 0.0
@@ -222,7 +225,14 @@ class Proposer:
     def _codex_app_server(
         self, cwd: Path, mission: str, system: str, wall: int
     ) -> tuple[str, float, str, dict[str, int]]:
-        client = CodexAppServerClient(model=self.spec.model, effort=self.spec.effort, timeout=wall)
+        event_log = None
+        if self.audit_dir:
+            directory = Path(self.audit_dir) / "codex-events"
+            directory.mkdir(parents=True, exist_ok=True)
+            event_log = directory / (uuid.uuid4().hex + ".jsonl")
+        client = CodexAppServerClient(
+            model=self.spec.model, effort=self.spec.effort, timeout=wall, event_log=event_log
+        )
         try:
             text, usage = client.run(cwd=cwd, mission=mission, system=system)
             return text, 0.0, "", usage

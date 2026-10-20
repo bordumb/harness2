@@ -20,10 +20,67 @@ import unittest
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from unittest.mock import patch
 
-from harness2.integrations.mac_agent import Candidate, MacAgentClient, MacAgentError
+from harness2.integrations.mac_agent import (
+    Candidate,
+    MacAgentClient,
+    MacAgentError,
+    MacAgentObservationPending,
+)
 
 
 class MacAgentIntegrationTests(unittest.TestCase):
+    def test_observer_deadline_resumes_original_key_without_post_or_cancellation(self):
+        client = MacAgentClient(
+            "http://127.0.0.1:1", "synthetic-token-value-1234567890", targets={}
+        )
+        candidate = Candidate("builtin")
+        request = {
+            "runtime_harness": candidate.as_dict(),
+            "runtime_harness_fingerprint": candidate.fingerprint,
+        }
+        pending = {"id": "run-1", "state": "running", "request": request}
+        finished = {
+            **pending,
+            "state": "succeeded",
+            "conversation": {
+                "messages": [{"role": "assistant", "isFinal": True, "text": "Verified answer"}]
+            },
+        }
+        calls = []
+        with patch("harness2.integrations.mac_agent.time.monotonic", return_value=0) as clock:
+
+            def respond(path, *, method="GET", body=None, key=None):
+                calls.append((method, path, key))
+                if path == "/v1/runtime/harness":
+                    return {"schema_version": 2, "fingerprint": candidate.fingerprint}
+                if method == "POST":
+                    clock.return_value = 5
+                    return pending
+                if path.startswith("/v1/submissions/"):
+                    return pending
+                if path == "/v1/runs/run-1":
+                    return finished
+                raise AssertionError("Unexpected request: " + path)
+
+            with patch.object(client, "_request", side_effect=respond):
+                with self.assertRaises(MacAgentObservationPending) as caught:
+                    client.run(
+                        task="Answer from original evidence",
+                        candidate=candidate,
+                        stable_run_key="retained",
+                        timeout=1,
+                    )
+                self.assertEqual(caught.exception.run_id, "run-1")
+                self.assertEqual(
+                    caught.exception.idempotency_key, client.idempotency_key("retained")
+                )
+                clock.return_value = 0
+                result = client.resume(candidate=candidate, stable_run_key="retained", timeout=1)
+        self.assertEqual(result.answer, "Verified answer")
+        self.assertEqual(sum(method == "POST" for method, _, _ in calls), 1)
+        self.assertIn(("GET", "/v1/submissions/" + client.idempotency_key("retained"), None), calls)
+        self.assertFalse(any("cancel" in path for _, path, _ in calls))
+
     def setUp(self):
         self.requests = []
         self.candidate = Candidate.load({"schema_version": 2, "id": "baseline"})
@@ -107,6 +164,7 @@ class MacAgentIntegrationTests(unittest.TestCase):
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         self.thread.start()
         self.addCleanup(self.thread.join)
+        self.addCleanup(self.server.server_close)
         self.addCleanup(self.server.shutdown)
 
     def test_candidate_allowlist_fingerprint_and_runtime_evidence(self):

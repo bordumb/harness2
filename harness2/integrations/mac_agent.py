@@ -33,6 +33,15 @@ class MacAgentError(RuntimeError):
     """The Mac Agent runtime rejected or could not resolve an evaluation run."""
 
 
+class MacAgentObservationPending(MacAgentError):
+    """An accepted run is still owned by its original host, not a failed task."""
+
+    def __init__(self, run_id: str, key: str, message: str):
+        super().__init__(message)
+        self.run_id = run_id
+        self.idempotency_key = key
+
+
 _MAX_BODY = 2_000_000
 _SECRET = re.compile(r"(?i)(bearer\s+)[A-Za-z0-9._~+/-]+=*|sk-[A-Za-z0-9_-]{12,}")
 
@@ -339,6 +348,33 @@ class MacAgentClient:
                     "submission outcome is uncertain; no record was found yet. Preserve idempotency key "
                     + key
                 )
+        return self._observe(record, candidate, key, started, timeout)
+
+    def resume(
+        self, *, candidate: Candidate, stable_run_key: str, timeout: float = 900
+    ) -> RunEvidence:
+        """Observe the exact original submission; this method never issues POST."""
+        if self.targets:
+            target = self.targets.get(candidate.fingerprint)
+            if target is None:
+                raise ValueError("No explicitly configured host for this candidate fingerprint")
+            return MacAgentClient(
+                target["endpoint"],
+                os.environ.get(target["token_environment"], ""),
+                poll_interval=self.poll_interval,
+                request_timeout=self.request_timeout,
+                targets={},
+            ).resume(candidate=candidate, stable_run_key=stable_run_key, timeout=timeout)
+        key = self.idempotency_key(stable_run_key)
+        started = time.monotonic()
+        record = self._request("/v1/submissions/" + key)
+        if not isinstance(record, dict) or not record.get("id"):
+            raise MacAgentError(
+                "The original durable submission is unavailable; do not dispatch a replacement"
+            )
+        return self._observe(record, candidate, key, started, timeout)
+
+    def _observe(self, record, candidate, key, started, timeout):
         self._verify_binding(record, candidate)
         run_id = str(record.get("id") or "")
         if not run_id:
@@ -350,17 +386,24 @@ class MacAgentClient:
                 if state in {"succeeded", "failed", "cancelled", "interrupted", "requiresInput"}:
                     break
                 if time.monotonic() >= deadline:
-                    raise MacAgentError(
+                    raise MacAgentObservationPending(
+                        run_id,
+                        key,
                         f"run {run_id} remains {state}; it was left durable and was not resubmitted or cancelled. "
-                        f"Resume with idempotency key {key}."
+                        f"Resume with idempotency key {key}.",
                     )
                 # Grading uses the durable record, not repeated full-state event
                 # snapshots. Server event pages can legitimately exceed this
                 # adapter's bounded record budget; downloading unused pages can
                 # abort otherwise healthy data work.
-                record = self._request(f"/v1/runs/{run_id}")
+                try:
+                    record = self._request(f"/v1/runs/{run_id}")
+                except MacAgentError as error:
+                    raise MacAgentObservationPending(run_id, key, str(error)) from error
                 if not isinstance(record, dict):
-                    raise MacAgentError(f"Mac Agent returned an invalid record for run {run_id}")
+                    raise MacAgentObservationPending(
+                        run_id, key, f"Mac Agent returned an invalid record for run {run_id}"
+                    )
                 time.sleep(self.poll_interval)
         except KeyboardInterrupt:
             try:
