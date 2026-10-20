@@ -664,6 +664,26 @@ def _build_surface_texts() -> dict[str, _SurfaceText]:
 _SURFACE_TEXTS = _build_surface_texts()
 
 
+def register_surface_text(
+    name: str, *, surface_md: str, invariant: str, domain: str, tts_surface: str
+) -> None:
+    """Register an adapter-owned surface without adding domain logic to core.
+
+    Repeated identical registration is safe; replacing another substrate's
+    contract is refused. Registration is host code, never a proposed tree edit.
+    """
+    if not name or any(
+        not isinstance(text, str) or not text.strip()
+        for text in (surface_md, invariant, domain, tts_surface)
+    ):
+        raise ValueError("A prompt surface needs a name and four nonempty fragments")
+    value = _SurfaceText(surface_md, invariant, domain, tts_surface)
+    previous = _SURFACE_TEXTS.get(name)
+    if previous is not None and previous != value:
+        raise ValueError(f"prompt surface {name!r} is already registered differently")
+    _SURFACE_TEXTS[name] = value
+
+
 def _st(surface: SurfaceSpec | str) -> _SurfaceText:
     name = surface if isinstance(surface, str) else surface.name
     got = _SURFACE_TEXTS.get(name)
