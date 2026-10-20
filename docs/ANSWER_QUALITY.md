@@ -42,3 +42,10 @@ The installed protocol is checked against
 Native direct/symlink canary denials and approved read/write controls passed on
 Codex 0.157.1 without inference. Older unsupported permission transports fail
 closed; do not fall back to unrestricted execution or edit global settings.
+
+Context isolation: every proposer session is ephemeral and receives only its
+constructed evidence workspace/mission. Host instruction discovery and inherited
+Codex memories are explicitly disabled; no current orchestrator conversation is
+passed. The installed CLI's memories default was already false when audited; this
+change removes reliance on that default, not a claim of detected contamination.
+The actual model-backed answer-quality recursion campaign remains unverified.

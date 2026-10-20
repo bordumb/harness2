@@ -26,6 +26,7 @@ from harness2.core.spec import resolve_channel_model
 FAKE_SERVER = """#!/usr/bin/env python3
 import json, pathlib, sys
 root = pathlib.Path(sys.argv[0]).parent
+(root / "launch-arguments.json").write_text(json.dumps(sys.argv[1:]), encoding="utf-8")
 record = root / "requests.jsonl"
 auth_mode = (root / "auth-mode").read_text(encoding="utf-8")
 for line in sys.stdin:
@@ -119,6 +120,10 @@ class CodexAppServerTests(unittest.TestCase):
         self.assertEqual(policy["filesystem"][":root"], "deny")
         self.assertEqual(policy["filesystem"][":minimal"], "read")
         self.assertEqual(policy["filesystem"][":workspace_roots"], "write")
+        launch = json.loads((self.root / "launch-arguments.json").read_text())
+        self.assertIn("features.memories=false", launch)
+        self.assertIn("project_doc_max_bytes=0", launch)
+        self.assertIn("features.skip_host_skill_discovery=true", launch)
 
     def test_non_chatgpt_account_is_rejected_without_fallback(self):
         client = self.client(auth_mode="api")

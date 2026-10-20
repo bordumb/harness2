@@ -120,6 +120,8 @@ class CodexAppServerClient:
                 "-c",
                 "features.skip_host_skill_discovery=true",
                 "-c",
+                "features.memories=false",
+                "-c",
                 "features.plugins=false",
                 "-c",
                 "features.apps=false",
