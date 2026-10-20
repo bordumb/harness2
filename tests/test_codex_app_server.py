@@ -136,6 +136,20 @@ class CodexAppServerTests(unittest.TestCase):
         self.assertNotIn("thread/start", methods)
         self.assertNotIn("turn/start", methods)
 
+    def test_optional_output_schema_is_forwarded_only_to_the_turn(self):
+        schema = {"type": "object", "properties": {"evidence": {"type": "string", "enum": ["call:01"]}},
+                  "required": ["evidence"], "additionalProperties": False}
+        client = self.client()
+        try:
+            client.run(cwd=self.root, mission="review", output_schema=schema)
+        finally:
+            client.close()
+        requests = [json.loads(line) for line in self.record.read_text().splitlines()]
+        thread = next(row["params"] for row in requests if row.get("method") == "thread/start")
+        turn = next(row["params"] for row in requests if row.get("method") == "turn/start")
+        self.assertNotIn("outputSchema", thread)
+        self.assertEqual(turn["outputSchema"], schema)
+
     def test_global_auth_mode_change_is_not_discarded_by_thread_filter(self):
         (self.root / "auth-changed").touch()
         client = self.client()

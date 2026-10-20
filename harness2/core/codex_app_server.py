@@ -184,7 +184,9 @@ class CodexAppServerClient:
             "network={enabled=false}}"
         )
 
-    def run(self, *, cwd: Path, mission: str, system: str = "") -> tuple[str, dict[str, int]]:
+    def run(
+        self, *, cwd: Path, mission: str, system: str = "", output_schema: dict | None = None
+    ) -> tuple[str, dict[str, int]]:
         self.start(cwd=cwd)
         started = self._request(
             "thread/start",
@@ -235,6 +237,7 @@ class CodexAppServerClient:
                 "effort": self.effort,
                 "approvalPolicy": "never",
                 "permissions": self.permission_profile,
+                **({"outputSchema": output_schema} if output_schema is not None else {}),
             },
         )
         turn_id = turn_started.get("turn", {}).get("id")
