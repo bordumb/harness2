@@ -15,8 +15,16 @@ The additional mature-cohort bank has four independently checked worlds and two
 actual development answers with all 24 requested values correct. An explicit
 source-dependency correction, with unchanged answers/data/expected values, gives
 24/24 supported facts; eleven fresh calibration controls and both narratives
-pass. That is evaluator repair/development evidence, not agent gain. A separate
-12-run frozen comparison is collecting; the original 96 are not being rerun.
+pass. That is evaluator repair/development evidence, not agent gain. The separate
+12-run frozen comparison and all anonymous assessments are complete. Every arm
+has 48/48 correct values and 4/4 passing narratives; strict source/full gates are
+prior 2/4, updated builtin 4/4 and C1 3/4. These differences are per-fact citation
+attachment completeness, not new arithmetic or business-conclusion gains. Keep
+builtin. The Mac Agent report `docs/testing/reports/2026-10-20-cohort-unseen.md`
+and its reviewed aggregate/audit preserve every original result. Across both
+comparisons, 108 analyst conversations and 108 reviewer threads are distinct;
+recorded initial models and scoped context/path checks pass. Docker is fully off.
+The original 96 are not rerun or retrospectively regraded.
 
 `harness2.integrations.answer_quality.AnswerQualityAdapter` implements the existing
 core `BenchmarkAdapter` contract. Use existing recursion, selection and library
