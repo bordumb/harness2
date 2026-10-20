@@ -90,6 +90,8 @@ class AnswerQualityAdapter:
     """Development-only recursion. Holdout is a separate frozen comparison gate."""
 
     def __init__(self, root: Path, backend: AnswerQualityBackend, *, model: str):
+        if getattr(backend, "partition", "development") != "development":
+            raise ValueError("A frozen holdout backend cannot enter proposer recursion")
         prompts.register_surface_text(
             "mac_agent",
             surface_md=HOST_SURFACE,

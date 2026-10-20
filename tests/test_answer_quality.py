@@ -66,6 +66,16 @@ class ControlledProposer(Proposer):
 
 
 class AnswerQualityTests(unittest.TestCase):
+    def test_frozen_holdout_backend_is_rejected_before_proposer_context_creation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            backend = Backend(root)
+            backend.partition = "holdout"
+            with self.assertRaisesRegex(ValueError, "cannot enter proposer recursion"):
+                AnswerQualityAdapter(root / "adapter", backend, model="gpt-6-sol")
+            self.assertFalse((root / "adapter").exists())
+            self.assertEqual(backend.calls, [])
+
     def test_existing_recursion_core_proposes_probes_and_composes_without_judge_feedback(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
