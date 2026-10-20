@@ -1,5 +1,11 @@
 # Mac Agent runtime evaluation lab
 
+Status: this document describes the earlier declarative transport benchmark.
+For independent recall/business-answer evaluation, actual Airflow/Trino
+investigations and the frozen comparison, use [ANSWER_QUALITY.md](ANSWER_QUALITY.md).
+Its Mac Agent-owned contracts replace phrase checks as correctness evidence;
+this transport lab remains available for its original bounded scope.
+
 This lab connects Harness² evaluation tasks to Mac Agent's authenticated durable
 run API. The Mac Agent server owns the real `AgentRuntime`, Codex app-server
 account, tool authorization, project namespace, context, and run persistence.
