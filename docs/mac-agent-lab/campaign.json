@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "campaign_id": "subscriber-definition-smoke",
+  "fixture_fingerprint": "smoke-fixture-not-pinned",
+  "baseline": "baseline.json",
+  "candidate": "candidate.json",
+  "development": [
+    {
+      "id": "metric-definition",
+      "file": "tasks/metric-definition-check.txt",
+      "required_phrases": ["subscriber"]
+    }
+  ],
+  "holdout": [
+    {
+      "id": "holdout-source-check",
+      "file": "tasks/holdout-source-check.txt",
+      "required_phrases": ["subscriber"]
+    }
+  ]
+}

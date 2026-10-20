@@ -1,0 +1,8 @@
+{
+  "schema_version": 2,
+  "id": "definition-check-v1",
+  "prompt_guidance": "State the source and definition used. Do not infer missing data.",
+  "tool_guidance": "",
+  "skills": [],
+  "retrieval_settings": {}
+}

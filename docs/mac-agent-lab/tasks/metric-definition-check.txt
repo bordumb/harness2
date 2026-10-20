@@ -1,0 +1,5 @@
+Using only the synthetic campaign data sources attached to this Mac Agent
+workspace, identify the canonical subscriber definition and compare it with
+the available subscription-status records. State the source tables and metric
+definition you used. If the fixture does not contain enough evidence, say what
+is missing instead of guessing. Do not alter source data or workspace settings.

@@ -1,0 +1,5 @@
+Using only the synthetic campaign sources attached to this Mac Agent workspace,
+explain which source defines subscriber status and how it can be linked to
+engagement. Cite the source names in your answer. If those sources are not
+available in the workspace, say so clearly. Do not modify source data or
+workspace settings.

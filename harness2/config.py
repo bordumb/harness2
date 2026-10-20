@@ -171,8 +171,12 @@ WB_MAX_JOBS = {"oc": 1, "cx": 1}
 WB_MAX_TRIALS = {"oc": 2, "cx": 2}
 WB_MODEL_CONNECTION = "local_proxy"
 
-DEFAULT_PROPOSER_CHANNEL = "opencode"
-PROPOSER_MODEL_BY_CHANNEL = {"opencode": IMPROVER_MODEL, "claude_cli": IMPROVER_MODEL}
+DEFAULT_PROPOSER_CHANNEL = env("HARNESS2_PROPOSER_CHANNEL", "opencode")
+PROPOSER_MODEL_BY_CHANNEL = {
+    "opencode": IMPROVER_MODEL,
+    "claude_cli": IMPROVER_MODEL,
+    "codex_app_server": env("HARNESS2_PROPOSER_MODEL", SOLVER_MODEL_CX),
+}
 PHASE_WIDTH = 2
 TRANSPORT_ATTEMPTS = 2
 PROPOSER_CONCURRENCY = 2
@@ -180,8 +184,19 @@ PROPOSER_CONCURRENCY = 2
 
 def validate_models(*, judge: bool = False) -> None:
     require("HARNESS2_SOLVER_MODEL", needed_by="executor rollouts")
-    if "/" not in SOLVER_MODEL_OC or "/" not in IMPROVER_MODEL:
-        raise ConfigError("Executor and improver models must use OpenCode's provider/model syntax")
+    if "/" not in SOLVER_MODEL_OC:
+        raise ConfigError("HARNESS2_SOLVER_MODEL must use OpenCode's provider/model syntax")
+    if DEFAULT_PROPOSER_CHANNEL == "opencode" and "/" not in PROPOSER_MODEL_BY_CHANNEL["opencode"]:
+        raise ConfigError("OpenCode improver models must use provider/model syntax")
+    if DEFAULT_PROPOSER_CHANNEL == "claude_cli" and "/" in PROPOSER_MODEL_BY_CHANNEL["claude_cli"]:
+        raise ConfigError("Claude CLI improver models must use a bare Anthropic model id")
+    if DEFAULT_PROPOSER_CHANNEL == "codex_app_server":
+        if not PROPOSER_MODEL_BY_CHANNEL["codex_app_server"]:
+            raise ConfigError("Set HARNESS2_PROPOSER_MODEL to a model available to signed-in Codex")
+        if "/" in PROPOSER_MODEL_BY_CHANNEL["codex_app_server"]:
+            raise ConfigError("HARNESS2_PROPOSER_MODEL must be a bare Codex model id")
+    elif not IMPROVER_MODEL:
+        raise ConfigError("Set HARNESS2_IMPROVER_MODEL for the selected improver channel")
     if any(m.startswith("google-vertex") for m in (SOLVER_MODEL_OC, IMPROVER_MODEL)):
         if not VERTEX_PROJECT:
             raise ConfigError("Set GOOGLE_CLOUD_PROJECT for Vertex AI")

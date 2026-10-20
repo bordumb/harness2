@@ -34,6 +34,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from .. import config
+from .codex_app_server import CodexAppServerClient
 from .spec import ChannelSpec
 
 SYSTEM_ARG_MAX = 120_000
@@ -80,6 +81,7 @@ class Reply:
     cached: bool = False
     channel: str = ""
     error: str = ""
+    usage: dict[str, int] = field(default_factory=dict)
     audit: Path | None = None
     workspace: Path | None = None
 
@@ -147,9 +149,12 @@ class Proposer:
             return cached
 
         wall = int(timeout or self.spec.timeout)
-        tries = max(1, int(self.attempts if max_attempts is None else max_attempts))
+        tries = 1 if self.spec.kind == "codex_app_server" else max(
+            1, int(self.attempts if max_attempts is None else max_attempts)
+        )
         last = ""
         spent_usd = 0.0
+        spent_usage = {"input_tokens": 0, "output_tokens": 0}
         t0 = time.time()
         for attempt in range(1, tries + 1):
             if attempt > 1:
@@ -159,9 +164,14 @@ class Proposer:
                 if context_dir and Path(context_dir).is_dir():
                     shutil.copytree(context_dir, tmp / "context", dirs_exist_ok=True)
                 with _SEM if _SEM is not None else contextlib.nullcontext():
-                    text, cost, err = (
-                        self._claude_cli if self.spec.kind == "claude_cli" else self._opencode
-                    )(tmp, mission, system, wall)
+                    if self.spec.kind == "claude_cli":
+                        text, cost, err = self._claude_cli(tmp, mission, system, wall)
+                    elif self.spec.kind == "codex_app_server":
+                        text, cost, err, usage = self._codex_app_server(tmp, mission, system, wall)
+                        for key in spent_usage:
+                            spent_usage[key] += int(usage.get(key, 0))
+                    else:
+                        text, cost, err = self._opencode(tmp, mission, system, wall)
                 spent_usd += cost
                 if not text.strip():
                     last = err or "empty reply"
@@ -174,6 +184,7 @@ class Proposer:
                     wall_s=round(time.time() - t0, 1),
                     attempts=attempt,
                     channel=self.spec.kind,
+                    usage=spent_usage.copy(),
                 )
                 if harvest:
                     r.workspace = self._harvest(tmp, harvest, label, cache_key)
@@ -198,6 +209,7 @@ class Proposer:
             channel=self.spec.kind,
             error=last,
             cost_usd=spent_usd,
+            usage=spent_usage.copy(),
         )
         self._calls.append(r)
         self._write_audit(r, mission, system, cache_key)
@@ -206,6 +218,18 @@ class Proposer:
             attempts=tries,
             cost_usd=spent_usd,
         )
+
+    def _codex_app_server(
+        self, cwd: Path, mission: str, system: str, wall: int
+    ) -> tuple[str, float, str, dict[str, int]]:
+        client = CodexAppServerClient(model=self.spec.model, effort=self.spec.effort, timeout=wall)
+        try:
+            text, usage = client.run(cwd=cwd, mission=mission, system=system)
+            return text, 0.0, "", usage
+        except Exception as exc:
+            return "", 0.0, f"{type(exc).__name__}: {exc}", {}
+        finally:
+            client.close()
 
     def _claude_cli(
         self, cwd: Path, mission: str, system: str, wall: int
@@ -378,6 +402,7 @@ class Proposer:
                     "attempts": r.attempts,
                     "wall_s": r.wall_s,
                     "cost_usd": r.cost_usd,
+                    "usage": r.usage,
                     "error": r.error,
                 },
                 indent=2,

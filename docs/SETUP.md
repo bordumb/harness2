@@ -51,6 +51,89 @@ judge's direct providers when their credentials are configured. For WorkBuddy,
 setup generates the Gemini solver and judge routes from these settings; rerun
 setup after changing either model.
 
+### Signed-in Codex for Harness²'s improver and selector
+
+The existing benchmark executor and judge routes remain configured separately.
+To route Harness² proposal/selection model calls through the Codex CLI already
+signed in with ChatGPT, set:
+
+```text
+HARNESS2_PROPOSER_CHANNEL=codex_app_server
+HARNESS2_PROPOSER_MODEL=<bare model ID shown by Codex>
+```
+
+`HARNESS2_CODEX_EXECUTABLE` and `HARNESS2_CODEX_HOME` are optional when the
+signed-in `codex` binary and home are already discoverable. The app-server
+adapter verifies `account/read` reports a ChatGPT account, checks that the
+model is available, pins the OpenAI provider, disables provider fallback,
+network access, MCP, plugins and integrations, and rejects unapproved RPC
+requests. It records reported token usage without inventing a subscription
+cost. It never reads or exports auth files or tokens.
+
+This channel currently covers Harness² proposer/selector calls. It does not
+replace the benchmark-specific executor or the benchmark's external judge. Use
+the separate Mac Agent lab adapter below to exercise Mac Agent's actual shared
+runtime. No API-key fallback is involved in either signed-in path.
+
+### Mac Agent shared-runtime evaluation
+
+For one bounded synthetic task against a running Mac Agent server, define the
+server origin and the lab identity's bearer token in the process environment:
+
+```text
+HARNESS2_MAC_AGENT_URL=http://127.0.0.1:<port>
+HARNESS2_MAC_AGENT_TOKEN=<lab identity token>
+```
+
+Use HTTPS for non-loopback servers. Keep the token out of files, command-line
+arguments, and retained evidence. A candidate JSON has this versioned shape:
+
+```json
+{
+  "schema_version": 1,
+  "id": "baseline-v1",
+  "prompt_guidance": "Check metric definitions before aggregating.",
+  "tool_guidance": "",
+  "skills": [],
+  "retrieval_settings": {"max_sources": 4}
+}
+```
+
+Only those candidate keys are accepted. Candidate guidance is included as
+bounded task context; `retrieval_settings` is fingerprinted as evaluation
+metadata and does not currently reconfigure Mac Agent's internal resolver.
+Authentication, namespace, history, cancellation behavior, and tool permissions
+cannot be changed by a candidate. Run one task with a durable, stable key:
+
+```bash
+harness2-mac-agent-eval \
+  --candidate docs/mac-agent-lab/baseline.json \
+  --task docs/mac-agent-lab/tasks/metric-check.txt \
+  --stable-run-key campaign-2026-01/baseline/metric-check/replica-1 \
+  --output runs/mac-agent/campaign-2026-01/baseline/metric-check.json
+```
+
+The output stores the run identity/state, timestamps, elapsed time, event count,
+candidate fingerprint, stable idempotency key, and final answer. It omits raw
+events, credentials, and provider traces. On an ambiguous submit, the adapter
+looks up the same idempotency key; it does not replay the submission. A timed
+out active run stays durable so a later process can inspect its key/run ID.
+For bounded baseline/candidate comparisons, see the
+[Mac Agent runtime evaluation lab](MAC_AGENT_LAB.md). It runs development by
+default; `--include-holdout` explicitly runs the frozen holdout partition.
+
+```bash
+harness2-mac-agent-campaign \
+  --manifest docs/mac-agent-lab/campaign.json \
+  --output runs/mac-agent/campaign-2026-01/report.json \
+  --max-runs 20
+# After freezing the candidate, evaluate the separate holdout once:
+harness2-mac-agent-campaign \
+  --manifest docs/mac-agent-lab/campaign.json \
+  --output runs/mac-agent/campaign-2026-01/holdout-report.json \
+  --max-runs 20 --include-holdout
+```
+
 ### Authentication alternatives
 
 On a machine with a configured attached service account, Application Default

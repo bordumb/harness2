@@ -30,7 +30,7 @@ from .tree import SurfaceSpec
 
 ModelId = str
 
-CHANNELS = ("claude_cli", "opencode")
+CHANNELS = ("claude_cli", "opencode", "codex_app_server")
 
 
 @dataclass(frozen=True)
@@ -82,6 +82,11 @@ def resolve_channel_model(
         raise ValueError(
             f"claude_cli channel takes a bare Anthropic id "
             f"(e.g. {config.PROPOSER_MODEL_BY_CHANNEL['claude_cli']!r}), got {model!r}"
+        )
+    if kind == "codex_app_server" and "/" in model:
+        raise ValueError(
+            "codex_app_server takes a bare Codex model id (for example 'gpt-6.1'), "
+            f"not a provider-prefixed id: {model!r}"
         )
     return ChannelSpec(kind, model, effort=effort, steps=steps, timeout=timeout)
 

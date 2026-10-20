@@ -1,0 +1,8 @@
+{
+  "schema_version": 2,
+  "id": "baseline-v1",
+  "prompt_guidance": "",
+  "tool_guidance": "",
+  "skills": [],
+  "retrieval_settings": {}
+}
