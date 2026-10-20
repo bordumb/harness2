@@ -120,11 +120,13 @@ runs; development/holdout partitioning; declarative phrase, artifact-reference
 and numeric-tolerance checks; aggregate comparisons; transport-failure and
 idempotency tests; and cancellation through the durable runtime API.
 
-Still required for the full issue: wire the manifest to the Mac Agent
-repository's product campaign fixtures; add independent checks for the
-fixture's data correctness, permission/namespace invariants and artifact
-contents; add an app-server model-judge adapter where deterministic judges are
-insufficient; propagate available usage from Mac Agent; and run the end-to-end
-campaign against a disposable server profile. Current tests use mocked
-protocol responses and are not proof that the live workflow works. Do not
-adopt a candidate based on the small declarative check set alone.
+At that initial transport checkpoint, independent fixture correctness,
+namespace/artifact checks, model-backed judgment, usage forwarding and an actual
+disposable-profile campaign were not yet verified. The later
+[answer-quality program](ANSWER_QUALITY.md) supplies the Mac Agent-owned source
+contracts, production-codec profiles, real Trino/Airflow, calibrated separate
+reviewers, actual recursion and a complete original frozen comparison. Available
+usage is forwarded by the durable adapter; missing usage remains unavailable.
+Use that program's current evidence and remaining cohort gate for business
+conclusions. The small declarative transport checks above remain useful within
+their original scope and cannot justify business-answer adoption alone.

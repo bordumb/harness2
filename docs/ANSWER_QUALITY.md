@@ -4,7 +4,19 @@ Status (2026-10-20): real shared-runtime execution, read-only Trino/Airflow,
 restricted proposer sessions and actual model-backed recursion are implemented.
 Mac Agent's complete twelve-case development cohort passes independent
 factual/source checks and calibrated narrative review. A sealed 96-run unseen
-comparison is collecting; no unseen improvement or promotion result exists yet.
+comparison and all 96 anonymous assessments are complete. Updated builtin passes
+5/8 difficult pipeline answers versus the prior product's 2/8 under the original
+strict gates. Static source regressions are retained; the instruction candidate
+fails the paired no-regression gate and is not adopted. The Mac Agent-owned
+`docs/testing/reports/2026-10-20-answer-quality-unseen.md` and reviewed aggregate
+retain every original outcome.
+
+The additional mature-cohort bank has four independently checked worlds and two
+actual development answers with all 24 requested values correct. An explicit
+source-dependency correction, with unchanged answers/data/expected values, gives
+24/24 supported facts; eleven fresh calibration controls and both narratives
+pass. That is evaluator repair/development evidence, not agent gain. A separate
+12-run frozen comparison is collecting; the original 96 are not being rerun.
 
 `harness2.integrations.answer_quality.AnswerQualityAdapter` implements the existing
 core `BenchmarkAdapter` contract. Use existing recursion, selection and library

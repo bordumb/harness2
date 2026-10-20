@@ -90,20 +90,25 @@ arguments, and retained evidence. A candidate JSON has this versioned shape:
 
 ```json
 {
-  "schema_version": 1,
-  "id": "baseline-v1",
+  "schema_version": 2,
+  "id": "baseline-v2",
   "prompt_guidance": "Check metric definitions before aggregating.",
   "tool_guidance": "",
   "skills": [],
-  "retrieval_settings": {"max_sources": 4}
+  "retrieval_settings": {
+    "context_byte_budget": 16000,
+    "maximum_notes": 8,
+    "maximum_recipe_hints": 4
+  }
 }
 ```
 
-Only those candidate keys are accepted. Candidate guidance is included as
-bounded task context; `retrieval_settings` is fingerprinted as evaluation
-metadata and does not currently reconfigure Mac Agent's internal resolver.
-Authentication, namespace, history, cancellation behavior, and tool permissions
-cannot be changed by a candidate. Run one task with a durable, stable key:
+Only those candidate keys are accepted; schema 1 and unknown retrieval fields
+are rejected. Schema-2 guidance and retrieval limits configure the host-owned
+runtime harness, with preflight and durable fingerprint binding. Task text stays
+unchanged. Authentication, model, namespace, history, cancellation behavior and
+tool permissions cannot be changed by a candidate. Run one transport task with a
+durable, stable key:
 
 ```bash
 harness2-mac-agent-eval \
@@ -119,15 +124,19 @@ events, credentials, and provider traces. On an ambiguous submit, the adapter
 looks up the same idempotency key; it does not replay the submission. A timed
 out active run stays durable so a later process can inspect its key/run ID.
 For bounded baseline/candidate comparisons, see the
-[Mac Agent runtime evaluation lab](MAC_AGENT_LAB.md). It runs development by
-default; `--include-holdout` explicitly runs the frozen holdout partition.
+[Mac Agent runtime evaluation lab](MAC_AGENT_LAB.md). This is the earlier bounded
+declarative transport benchmark. It runs development by default;
+`--include-holdout` selects its separately declared transport holdout. That flag
+does not seal production sources or implement the independent business-answer
+comparison. For recall/analysis selection, use the canonical frozen collection and
+independent grading described in [ANSWER_QUALITY.md](ANSWER_QUALITY.md).
 
 ```bash
 harness2-mac-agent-campaign \
   --manifest docs/mac-agent-lab/campaign.json \
   --output runs/mac-agent/campaign-2026-01/report.json \
   --max-runs 20
-# After freezing the candidate, evaluate the separate holdout once:
+# Optional separate transport holdout; not business-answer grading:
 harness2-mac-agent-campaign \
   --manifest docs/mac-agent-lab/campaign.json \
   --output runs/mac-agent/campaign-2026-01/holdout-report.json \
