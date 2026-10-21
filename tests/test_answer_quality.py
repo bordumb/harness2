@@ -66,6 +66,19 @@ class ControlledProposer(Proposer):
 
 
 class AnswerQualityTests(unittest.TestCase):
+    def test_backend_candidate_guard_runs_before_any_analyst_execution(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            backend = Backend(root)
+            def reject(candidate):
+                if "source-fact" in candidate["tool_guidance"]:
+                    raise ValueError("task-specific source-fact")
+            backend.validate_candidate = reject
+            adapter = AnswerQualityAdapter(root, backend, model="gpt-6-sol")
+            with self.assertRaisesRegex(ValueError, "task-specific"):
+                adapter.validate_tree({"tool_guidance.md": "source-fact"})
+            self.assertEqual(backend.calls, [])
+
     def test_frozen_holdout_backend_is_rejected_before_proposer_context_creation(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

@@ -42,6 +42,11 @@ No other files, scripts, plugins, executable skills or subagents are supported.
 Do not change the question, evidence, provider, authentication, source grants,
 permissions or completion policy. Make reusable changes grounded in observed
 behavior; do not put this task's answer into the harness. Leave valid JSON behind.
+Never copy source-data facts into guidance: no merchant/customer names, record IDs,
+task-specific dates, measured totals, intermediate calculations or task answers.
+Guidance must describe a reusable procedure; the analyst must read current source
+facts itself. Reading source files as proposer does not authorize embedding their
+contents into runtime instructions. Task-specific examples must be generalized.
 Return concise <notes> explaining observed evidence and the proposed change.
 """
 
@@ -155,7 +160,10 @@ class AnswerQualityAdapter:
         return self._base
 
     def validate_tree(self, value):
-        candidate_from_tree(value)
+        candidate = candidate_from_tree(value)
+        validate = getattr(self.backend, "validate_candidate", None)
+        if validate is not None:
+            validate(candidate.as_dict())
 
     def execute(self, task_id, harness_dir, run_id, *, timeout=None):
         self._development(task_id)
