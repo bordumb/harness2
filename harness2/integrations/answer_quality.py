@@ -126,6 +126,13 @@ class AnswerQualityAdapter:
                 dom_levers="Improve source discovery, date/scope interpretation, numerical reasoning and warranted uncertainty.",
                 yardstick="A useful answer is supported by original evidence, preserves units and scope, and identifies unresolved questions honestly.",
                 domain_guidance="Use observed trajectories to distinguish retrieval, context, reasoning and tool limitations. Do not prescribe a particular SQL implementation.",
+                selection_checks=(
+                    "Inspect each candidate's authorized tool observations and calculations, not just its final answer. "
+                    "Check source definitions, rule populations, units, coverage and arithmetic. "
+                    "A short source projection may omit data available to the analyst; absence from that projection "
+                    "is not proof the data does not exist. Neither confident wording nor abstention establishes correctness. "
+                    "Name unresolved evidence rather than inventing support for a choice."
+                ),
             ),
             channels={"proposer": channel, "selector": channel},
             leak_globs=("**/evaluation/**", "**/contract.json", "**/seed.json", "**/judgment.json"),
@@ -189,7 +196,12 @@ class AnswerQualityAdapter:
         return self.backend.inspect(run_dir)["deliverables"]
 
     def deliverable_text(self, run_dir):
-        return "\n\n".join(self.deliverable_files(run_dir).values())
+        # A numeric answer alone cannot establish whether the calculation used
+        # the right population. Export the same authorized tool evidence used by
+        # proposal/composition, never the independent judgment or native journal.
+        inspected = self.backend.inspect(run_dir)
+        answer = "\n\n".join(inspected["deliverables"].values())
+        return answer + "\n\n## Authorized tool observations\n\n" + inspected["trajectory"]
 
     def score(self, run_dir, task_id):
         self._development(task_id)

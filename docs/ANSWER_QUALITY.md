@@ -149,3 +149,10 @@ incorrect count or duplicate identity is rejected before any proposal or rollout
 Keep source definitions in current evidence, preserve prior reusable procedures,
 and use the per-domain experience library across tasks. Independent transfer
 checks remain necessary before any application-default change.
+
+Numeric-answer selection includes the candidate's original authorized tool
+observations alongside its final answer. A final number or abstention alone is
+insufficient evidence of correct scope, rule eligibility or arithmetic. The
+selector must inspect those observations; a documentation-only source projection
+is not proof that omitted source data was unavailable to the analyst. Native
+journals and independent judgments are never copied into candidate evidence.

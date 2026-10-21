@@ -73,6 +73,31 @@ class ControlledProposer(Proposer):
 
 
 class AnswerQualityTests(unittest.TestCase):
+    def test_selection_receives_calculations_without_judgments_or_native_records(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            backend = Backend(root)
+            adapter = AnswerQualityAdapter(root, backend, model="gpt-6-sol")
+            run = backend.execute("dev", {}, "candidate", 1)
+            (run / "judgment.json").write_text('{"private":"DO_NOT_COPY"}')
+            (run / "record.json").write_text('{"credential":"DO_NOT_COPY"}')
+            from harness2.core.selection import run_selection
+            def select(mission, context_dir, label):
+                rendered = (Path(context_dir) / "candidates/A.md").read_text()
+                self.assertIn("The team chose UTC.", rendered)
+                self.assertIn("[OBSERVATION] Team chose UTC", rendered)
+                self.assertNotIn("DO_NOT_COPY", rendered)
+                self.assertIn("authorized tool observations", mission)
+                self.assertEqual(backend.judgments, 0)
+                return Reply(label=label, text="```choice\nA\n```", ok=True, attempts=1)
+            proposer = Mock()
+            proposer.call.side_effect = select
+            selection = run_selection("dev", 1, "seq",
+                                      {"c1": RunView("c1", "candidate", run, True, True)},
+                                      adapter=adapter, prop=proposer, work_dir=root / "selection")
+            self.assertTrue(selection.ok, selection.error)
+            self.assertEqual(backend.judgments, 0)
+
     def test_selection_rejects_memorized_candidate_before_selector_or_library(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
