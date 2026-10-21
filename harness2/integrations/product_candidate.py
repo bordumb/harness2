@@ -58,17 +58,21 @@ def propose_product(*, proposer: Proposer, repository: Path, context: Path,
     if reply.workspace is None:
         raise ValueError("Proposer returned no source tree")
     changed = {}
+    present = set()
     for path in reply.workspace.rglob("*"):
         if path.is_symlink():
             raise ValueError("Code proposals cannot contain symlinks")
         if not path.is_file():
             continue
         name = path.relative_to(reply.workspace).as_posix()
+        present.add(name)
         if name not in paths or path.stat().st_size > 524_288:
             raise ValueError("Proposer changed an unsupported source path")
         body = path.read_text()
         if hashlib.sha256(body.encode()).hexdigest() != originals[name]:
             changed[name] = body
+    if present != set(paths):
+        raise ValueError("Source proposals must retain all allowlisted files")
     manifest = {"kind": "product-source", "original_sha256": originals,
                 "changed_sha256": {name: hashlib.sha256(body.encode()).hexdigest() for name, body in changed.items()},
                 "workspace": str(reply.workspace), "notes": reply.text, "usage": reply.usage,

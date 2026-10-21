@@ -4,9 +4,23 @@ import unittest
 from unittest.mock import Mock
 
 from harness2.integrations.product_candidate import _path, propose_product
+from harness2.core.proposer import Proposer, ProposerError
+from harness2.core.spec import ChannelSpec
 
 
 class ProductCandidateTests(unittest.TestCase):
+    def test_harvest_rejects_symlinks_before_copying_private_host_bytes(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            source = root / "session/context/source"
+            source.mkdir(parents=True)
+            (root / "private.txt").write_text("secret")
+            (source / "Tool.swift").symlink_to(root / "private.txt")
+            proposer = Proposer(ChannelSpec("codex_app_server", "gpt-6-sol"), audit_dir=root / "audit")
+            with self.assertRaisesRegex(ProposerError, "symlinks"):
+                proposer._harvest(root / "session", "context/source", "patch")
+            self.assertFalse((root / "audit").exists())
+
     def test_private_and_escaping_paths_are_rejected(self):
         for path in ("/tmp/code.swift", "Sources/../private.py", "lab/answers.py", "Sources/.git/hook.py"):
             with self.assertRaises(ValueError):

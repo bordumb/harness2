@@ -349,6 +349,8 @@ class Proposer:
         src = tmp / sub
         if not src.is_dir():
             return None
+        if src.is_symlink() or any(path.is_symlink() for path in src.rglob("*")):
+            raise ProposerError("Proposed trees cannot contain symlinks")
         dest = Path(self.audit_dir or tempfile.mkdtemp(prefix="harness2-harvest-"))
         safe = re.sub(r"[^A-Za-z0-9_.-]+", "_", label)
         if cache_key:
