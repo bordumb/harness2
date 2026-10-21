@@ -186,3 +186,45 @@ class AnswerQualityAdapter:
     def score(self, run_dir, task_id):
         self._development(task_id)
         return self.backend.judge(run_dir, task_id)
+
+
+def finalize_development(task_id, rollouts, trees, *, adapter, proposer, work_dir, library):
+    """Use core selection/reflection/library only after candidate validity checks.
+
+    This function never calls an independent grader. A development library is not
+    adoption into the user's application or permission to evaluate holdout.
+    """
+    from ..core import selection
+
+    adapter._development(task_id)
+    eligible, rejected = {}, {}
+    for label, view in rollouts.items():
+        try:
+            adapter.validate_tree(trees.get(label, {}))
+        except ValueError as error:
+            rejected[label] = str(error)
+            continue
+        eligible[label] = view
+    if len(eligible) <= 1:
+        chosen = selection.trivial_selection(task_id, 1, "seq", eligible,
+                                             adapter=adapter, work_dir=work_dir)
+    else:
+        chosen = selection.run_selection(task_id, 1, "seq", eligible, adapter=adapter,
+                                        prop=proposer, work_dir=work_dir)
+    entry = None
+    selected_tree = trees.get(chosen.chosen_label, {})
+    if chosen.ok and candidate_from_tree(selected_tree).id != "builtin":
+        adapter.validate_tree(selected_tree)
+        experience = selection.reflect_adoption(task_id, chosen, eligible, adapter=adapter,
+                                                prop=proposer, work_dir=work_dir)
+        # Reflection also stays data-free; source facts may not be cached as rules.
+        try:
+            validate = getattr(adapter.backend, "validate_candidate", None)
+            if validate is not None:
+                validate({"prompt_guidance": "", "tool_guidance": json.dumps(experience), "skills": []})
+            entry = library.add(task_id, selected_tree, why=chosen.why, label=chosen.chosen_label,
+                                run_id=chosen.chosen_run_id, experience=experience)
+        except ValueError as error:
+            rejected["reflection"] = str(error)
+    return {"selection": chosen.to_dict(), "rejected": rejected,
+            "library_entry": str(entry) if entry else None, "application_adopted": False}

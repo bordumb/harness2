@@ -1,5 +1,36 @@
 # Mac Agent recall and answer quality
 
+## DABstep and product-source development
+
+Mac Agent's `lab/benchmarks/README.md` owns the plugin runner, pinned DABstep
+development inputs/scorer, executable commands and evidence retention. Its
+`RuntimeBackend` implements this adapter's existing backend port. No second
+optimizer or direct analyst model client is introduced.
+
+The optional backend `validate_candidate` port runs during proposal validation and
+before selection/library retention. Mac Agent's DABstep implementation rejects
+guidance containing public source entities; semantic review remains necessary for
+other task-specific facts. Private reference answers are never used by this guard.
+`finalize_development` uses core selection, reflection and `Library`, excluding
+rejected trees and source facts in reflection before independent grading. Library
+retention is development context, not adoption into the user's app.
+
+`harness2.integrations.product_candidate.propose_product` supplies a separate,
+explicitly allowlisted product-source proposal workspace to the existing
+`Proposer`. It returns reviewed source hashes and a proposal manifest; it cannot
+apply code, build, modify credentials/grants or promote a product. Harvest uses
+bounded descriptor-based copies without following symlinks. The operator validates
+and builds an isolated product, then Mac Agent records product revision and binary
+resource hashes separately from instruction configuration and runner revision.
+
+The 2026-10-21 Mac Agent report records one actual three-stage instruction cycle,
+rejection of all task-specific instruction candidates, an actual source proposal,
+an isolated rebuilt runtime and a four-task development comparison. These are
+development observations, not a hidden-set leaderboard result. See Mac Agent's
+`docs/testing/reports/2026-10-21-dabstep-tooling.md` for the measured outcomes.
+
+## Existing recall and pipeline program
+
 Status (2026-10-20): real shared-runtime execution, read-only Trino/Airflow,
 restricted proposer sessions and actual model-backed recursion are implemented.
 Mac Agent's complete twelve-case development cohort passes independent

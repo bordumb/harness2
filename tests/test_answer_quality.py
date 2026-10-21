@@ -2,12 +2,19 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import Mock, patch
 
 from harness2.core import context, tree
+from harness2.core.library import Library
 from harness2.core.proposer import Proposer, Reply
 from harness2.core.recursion import run_sequential
 from harness2.core.spec import BenchmarkAdapter, RunView
-from harness2.integrations.answer_quality import SURFACE, AnswerQualityAdapter, candidate_from_tree
+from harness2.integrations.answer_quality import (
+    SURFACE,
+    AnswerQualityAdapter,
+    candidate_from_tree,
+    finalize_development,
+)
 
 
 class Backend:
@@ -66,6 +73,67 @@ class ControlledProposer(Proposer):
 
 
 class AnswerQualityTests(unittest.TestCase):
+    def test_selection_rejects_memorized_candidate_before_selector_or_library(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            backend = Backend(root)
+            def reject(candidate):
+                if "source-fact" in candidate["tool_guidance"]:
+                    raise ValueError("task-specific source-fact")
+            backend.validate_candidate = reject
+            adapter = AnswerQualityAdapter(root, backend, model="gpt-6-sol")
+            run = backend.execute("dev", {}, "base", 1)
+            proposer = Mock()
+            library = Library(root / "library", "recall", SURFACE)
+            result = finalize_development("dev", {"base": RunView("base", "base", run, True, True),
+                                                 "c1": RunView("c1", "candidate", run, True, True)},
+                                          {"c1": {"tool_guidance.md": "source-fact"}},
+                                          adapter=adapter, proposer=proposer, work_dir=root / "selection", library=library)
+            self.assertIn("c1", result["rejected"])
+            self.assertTrue(result["selection"]["chosen_is_base"])
+            self.assertEqual(library.entries(), [])
+            self.assertEqual(backend.judgments, 0)
+            proposer.call.assert_not_called()
+
+    def test_valid_development_procedure_uses_existing_library_without_app_adoption(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            backend = Backend(root)
+            adapter = AnswerQualityAdapter(root, backend, model="gpt-6-sol")
+            run = backend.execute("dev", {}, "candidate", 1)
+            library = Library(root / "library", "recall", SURFACE)
+            value = {"systemprompt.md": "", "retrieval.json": "{}",
+                     "tool_guidance.md": "Inspect original evidence before answering."}
+            experience = {"cue": "Incomplete source retrieval", "lesson": "Inspect current source.",
+                          "evidence": "Original input was not read."}
+            with patch("harness2.core.selection.reflect_adoption", return_value=experience):
+                result = finalize_development("dev", {"c1": RunView("c1", "candidate", run, True, True)},
+                                              {"c1": value}, adapter=adapter, proposer=Mock(),
+                                              work_dir=root / "selection", library=library)
+            self.assertEqual(library.tree_of("dev"), value)
+            self.assertFalse(result["application_adopted"])
+            self.assertEqual(backend.judgments, 0)
+
+    def test_task_facts_in_reflection_do_not_enter_the_improvement_library(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            backend = Backend(root)
+            def reject(candidate):
+                if "source-fact" in candidate["tool_guidance"]:
+                    raise ValueError("task-specific source-fact")
+            backend.validate_candidate = reject
+            adapter = AnswerQualityAdapter(root, backend, model="gpt-6-sol")
+            run = backend.execute("dev", {}, "candidate", 1)
+            library = Library(root / "library", "recall", SURFACE)
+            experience = {"cue": "Input", "lesson": "Inspect original source", "evidence": "source-fact"}
+            with patch("harness2.core.selection.reflect_adoption", return_value=experience):
+                result = finalize_development("dev", {"c1": RunView("c1", "candidate", run, True, True)},
+                                              {"c1": {"tool_guidance.md": "Read current sources."}},
+                                              adapter=adapter, proposer=Mock(), work_dir=root / "selection", library=library)
+            self.assertIn("reflection", result["rejected"])
+            self.assertEqual(library.entries(), [])
+            self.assertEqual(backend.judgments, 0)
+
     def test_backend_candidate_guard_runs_before_any_analyst_execution(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
