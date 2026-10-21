@@ -182,6 +182,37 @@ class AnswerQualityTests(unittest.TestCase):
             self.assertEqual(backend.judgments, 0)
             self.assertTrue(all(call[1]["tool_guidance"] for call in backend.calls[1:]))
 
+    def test_seeded_baseline_is_identical_in_execution_and_proposer_context(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            backend = Backend(root)
+            incumbent = {"systemprompt.md": "Preserve established metric definitions.",
+                         "tool_guidance.md": "Read current source policy.", "retrieval.json": "{}"}
+            adapter = AnswerQualityAdapter(root / "adapter", backend, model="gpt-6-sol", initial_tree=incumbent)
+            run = adapter.execute("dev", None, "incumbent")
+            self.assertEqual(backend.calls[-1][1], candidate_from_tree(incumbent).as_dict())
+            built = context.build(root / "context", adapter, "dev",
+                                  [RunView("base", "incumbent", run, True, True)],
+                                  harness_dir=adapter.base_harness())
+            self.assertEqual((built.root / "harness/tool_guidance.md").read_text(), incumbent["tool_guidance.md"])
+            self.assertEqual(backend.judgments, 0)
+            with self.assertRaisesRegex(ValueError, "baseline harness changed"):
+                AnswerQualityAdapter(root / "adapter", backend, model="gpt-6-sol")
+
+    def test_seeded_source_fact_is_rejected_before_context_or_execution(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            backend = Backend(root)
+            def reject(candidate):
+                if "source-fact" in candidate["tool_guidance"]:
+                    raise ValueError("source-fact")
+            backend.validate_candidate = reject
+            with self.assertRaisesRegex(ValueError, "source-fact"):
+                AnswerQualityAdapter(root / "adapter", backend, model="gpt-6-sol",
+                                     initial_tree={"tool_guidance.md": "source-fact"})
+            self.assertFalse((root / "adapter/base").exists())
+            self.assertEqual(backend.calls, [])
+
     def test_depth_two_rejects_missing_or_duplicated_baselines_before_inference(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

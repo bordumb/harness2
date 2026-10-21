@@ -49,6 +49,10 @@ business definitions, formulas or field-to-meaning mappings into runtime guidanc
 Tell the analyst how to establish the current definition from authorized evidence.
 The analyst must read current source facts itself. Reading source files as proposer does not authorize embedding their
 contents into runtime instructions. Task-specific examples must be generalized.
+Preserve existing reusable procedures from earlier tasks unless current evidence
+shows they conflict. A procedure need not be relevant to this single task to be
+valuable across the workload. Use the experience library for that context.
+Editing these text files requires no Git, build, dependency or test commands.
 Return concise <notes> explaining observed evidence and the proposed change.
 """
 
@@ -96,7 +100,7 @@ def candidate_from_tree(value: tree.Tree) -> Candidate:
 class AnswerQualityAdapter:
     """Development-only recursion. Holdout is a separate frozen comparison gate."""
 
-    def __init__(self, root: Path, backend: AnswerQualityBackend, *, model: str):
+    def __init__(self, root: Path, backend: AnswerQualityBackend, *, model: str, initial_tree: tree.Tree | None = None):
         if getattr(backend, "partition", "development") != "development":
             raise ValueError("A frozen holdout backend cannot enter proposer recursion")
         prompts.register_surface_text(
@@ -127,15 +131,17 @@ class AnswerQualityAdapter:
             leak_globs=("**/evaluation/**", "**/contract.json", "**/seed.json", "**/judgment.json"),
             allow_subagents=False,
         )
+        baseline = dict(initial_tree) if initial_tree is not None else {
+            "systemprompt.md": "", "tool_guidance.md": "", "retrieval.json": "{}"}
+        self.validate_tree(baseline)
+        from ..core.context import assert_tree_has_no_grader_verdicts
+        assert_tree_has_no_grader_verdicts(baseline)
         self._base = root / "base"
         if not self._base.exists():
-            tree.write_tree(
-                SURFACE,
-                {"systemprompt.md": "", "tool_guidance.md": "", "retrieval.json": "{}"},
-                self._base,
-            )
-        # A caller cannot silently relabel a changed harness as builtin.
-        if candidate_from_tree(tree.read_tree(SURFACE, self._base)).id != "builtin":
+            tree.write_tree(SURFACE, baseline, self._base)
+        # Selection/reflection must inspect the same effective initial tree used
+        # by baseline execution, including a deliberately seeded incumbent.
+        if candidate_from_tree(tree.read_tree(SURFACE, self._base)) != candidate_from_tree(baseline):
             raise ValueError("The baseline harness changed")
 
     def tasks(self, split="all"):

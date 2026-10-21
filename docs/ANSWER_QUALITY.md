@@ -137,3 +137,15 @@ The new product's denied-tool filtering and SQL alias support are measured
 separately from the instruction candidate. If the frozen candidate supplies no
 incremental supported-answer gain, retain the builtin harness. Same-model reviewer
 bias and fixture-author bias remain limitations despite session isolation.
+
+### Seeded recursive baselines
+
+Pass `initial_tree` to `AnswerQualityAdapter` when continuing from a reviewed
+incumbent. Execute baselines from `adapter.base_harness()` and give that same tree
+to recursion. Selection/reflection then inspect the actual baseline rather than
+an empty builtin surface. Reopening the adapter with a different baseline fails.
+Both recursion modes require `k` distinct baseline samples for `k` units; an
+incorrect count or duplicate identity is rejected before any proposal or rollout.
+Keep source definitions in current evidence, preserve prior reusable procedures,
+and use the per-domain experience library across tasks. Independent transfer
+checks remain necessary before any application-default change.
