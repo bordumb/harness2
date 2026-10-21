@@ -26,6 +26,7 @@ import json
 import os
 import re
 import shutil
+import stat
 import subprocess
 import tempfile
 import threading
@@ -67,6 +68,55 @@ class ProposerError(RuntimeError):
         super().__init__(message)
         self.attempts = attempts
         self.cost_usd = cost_usd
+
+
+def _copy_harvest_tree(source: Path, destination: Path) -> None:
+    """Snapshot model-written regular files without following raced symlinks."""
+    total, entries = 0, 0
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    directory_flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+
+    def copy_directory(descriptor, target):
+        nonlocal total, entries
+        target.mkdir()
+        for name in os.listdir(descriptor):
+            entries += 1
+            if entries > 1000:
+                raise ProposerError("Proposed tree exceeds 1000 entries")
+            info = os.stat(name, dir_fd=descriptor, follow_symlinks=False)
+            if stat.S_ISDIR(info.st_mode):
+                child = os.open(name, directory_flags, dir_fd=descriptor)
+                try:
+                    copy_directory(child, target / name)
+                finally:
+                    os.close(child)
+            elif stat.S_ISREG(info.st_mode):
+                child = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=descriptor)
+                try:
+                    if not stat.S_ISREG(os.fstat(child).st_mode):
+                        raise ProposerError("Proposed trees contain only regular files")
+                    body = bytearray()
+                    while chunk := os.read(child, 65536):
+                        body.extend(chunk)
+                        total += len(chunk)
+                        if len(body) > 1_000_000 or total > 8_000_000:
+                            raise ProposerError("Proposed source exceeds bounded harvest limits")
+                    path = target / name
+                    path.write_bytes(body)
+                    path.chmod(0o755 if info.st_mode & 0o111 else 0o644)
+                finally:
+                    os.close(child)
+            else:
+                raise ProposerError("Proposed trees cannot contain symlinks or special files")
+
+    descriptor = os.open(source, directory_flags)
+    try:
+        copy_directory(descriptor, destination)
+    except BaseException:
+        shutil.rmtree(destination, ignore_errors=True)
+        raise
+    finally:
+        os.close(descriptor)
 
 
 @dataclass
@@ -357,7 +407,7 @@ class Proposer:
             safe = f"{safe}.{cache_key}"
         dest = dest / f"{safe}.workspace"
         shutil.rmtree(dest, ignore_errors=True)
-        shutil.copytree(src, dest)
+        _copy_harvest_tree(src, dest)
         return dest
 
     def _paths(self, label: str, cache_key: str = "") -> dict[str, Path] | None:
