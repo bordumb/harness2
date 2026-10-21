@@ -44,8 +44,10 @@ permissions or completion policy. Make reusable changes grounded in observed
 behavior; do not put this task's answer into the harness. Leave valid JSON behind.
 Never copy source-data facts into guidance: no merchant/customer names, record IDs,
 task-specific dates, measured totals, intermediate calculations or task answers.
-Guidance must describe a reusable procedure; the analyst must read current source
-facts itself. Reading source files as proposer does not authorize embedding their
+Guidance must describe a reusable procedure; do not copy source schemas, filenames,
+business definitions, formulas or field-to-meaning mappings into runtime guidance.
+Tell the analyst how to establish the current definition from authorized evidence.
+The analyst must read current source facts itself. Reading source files as proposer does not authorize embedding their
 contents into runtime instructions. Task-specific examples must be generalized.
 Return concise <notes> explaining observed evidence and the proposed change.
 """

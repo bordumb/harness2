@@ -182,6 +182,44 @@ class AnswerQualityTests(unittest.TestCase):
             self.assertEqual(backend.judgments, 0)
             self.assertTrue(all(call[1]["tool_guidance"] for call in backend.calls[1:]))
 
+    def test_depth_two_rejects_missing_or_duplicated_baselines_before_inference(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            backend = Backend(root)
+            adapter = AnswerQualityAdapter(root, backend, model="gpt-6-sol")
+            run = backend.execute("dev", {}, "base", 1)
+            base = RunView("base", "base", run, True, True)
+            proposer = Mock()
+            from harness2.core.recursion import run_parallel
+            for function in (run_sequential, run_parallel):
+                for inputs in ([base], [base, base]):
+                    with self.assertRaisesRegex(ValueError, "baseline|Baseline"):
+                        function("dev", 2, inputs, adapter=adapter, prop=proposer,
+                                 work_dir=root / "invalid", run_id_of=lambda x: x,
+                                 base_tree={})
+            proposer.call.assert_not_called()
+            self.assertEqual(len(backend.calls), 1)
+            self.assertFalse((root / "invalid").exists())
+
+    def test_depth_two_accounts_for_eight_real_distinct_executions(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            backend = Backend(root)
+            adapter = AnswerQualityAdapter(root, backend, model="gpt-6-sol")
+            base = [RunView("base" + str(i), "base" + str(i),
+                            adapter.execute("dev", None, "base" + str(i)), True, True)
+                    for i in (1, 2)]
+            result = run_sequential(
+                "dev", 2, base, adapter=adapter,
+                prop=ControlledProposer(adapter.spec.channels["proposer"]),
+                work_dir=root / "recursion", run_id_of=lambda x: "recursion-" + x,
+                base_tree=tree.read_tree(SURFACE, adapter.base_harness()),
+                propose_workers=1, rollout_workers=1)
+            self.assertTrue(result.ok, result.errors)
+            self.assertEqual(len(backend.calls), 8)
+            self.assertEqual(len({call[2] for call in backend.calls}), 8)
+            self.assertEqual(backend.judgments, 0)
+
     def test_candidates_are_runtime_effective_and_unsupported_surfaces_fail(self):
         self.assertEqual(candidate_from_tree({}).id, "builtin")
         candidate = candidate_from_tree(

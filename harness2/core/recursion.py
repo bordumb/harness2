@@ -340,6 +340,16 @@ def _roll_many(
     return out
 
 
+def _validate_baselines(k: int, base: Sequence[RunView]) -> None:
+    # Each depth/width unit includes its own baseline in the documented 4k ledger.
+    # Reject a scheduling error before any paid proposal or rollout is dispatched.
+    if type(k) is not int or k < 1 or len(base) != k:
+        raise ValueError("Recursion requires k distinct baseline samples for k rounds")
+    if (len({view.label for view in base}) != k
+            or len({(Path(view.run_dir).resolve(), view.run_id) for view in base}) != k):
+        raise ValueError("Baseline labels and execution identities must be distinct")
+
+
 def run_parallel(
     task_id: str,
     k: int,
@@ -355,6 +365,7 @@ def run_parallel(
     rollout_workers: int = PHASE_WIDTH,
 ) -> ModeResult:
     """WIDTH: 2k iid candidates from shared evidence, then k INDEPENDENT compositions."""
+    _validate_baselines(k, base)
     surface = adapter.substrate.surface()
     ledger = Ledger(mode="agg", task_id=task_id, k=k)
     for r in base:
@@ -464,6 +475,7 @@ def run_sequential(
     rollout_workers: int = PHASE_WIDTH,
 ) -> ModeResult:
     """DEPTH: k nested passes over the same shared base evidence."""
+    _validate_baselines(k, base)
     surface = adapter.substrate.surface()
     ledger = Ledger(mode="seq", task_id=task_id, k=k)
     for r in base:
