@@ -237,6 +237,12 @@ class ProfileAdapterTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "runtime instructions"):
             self.adapter.validate_run("dev", path)
 
+    def test_malformed_note_collections_fail_as_actionable_validation_errors(self):
+        for notes in (None, "not a list", ["not a record"], [None]):
+            with self.assertRaisesRegex(ValueError, "native record objects"):
+                self.adapter.validate_tree(as_tree({**initial(), "notes": notes}))
+        self.assertEqual(self.backend.calls, [])
+
     def test_seeded_profile_is_preserved_as_the_actual_baseline(self):
         value = initial()
         value["notes"] = [{"statement": "Original company fact"}]

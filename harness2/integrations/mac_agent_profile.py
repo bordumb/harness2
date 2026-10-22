@@ -39,6 +39,13 @@ Only notes, packages and their review/provenance may change. The host validates
 and imports these assets through native project-scoped stores. Runtime prompts,
 model, permissions, source files and provider remain fixed.
 
+Before editing, identify an observable causal weakness in the original calculations
+or source use. Adding a fact the analyst already used correctly is not evidence
+of improvement. State the operation the new asset should change and the source
+check that could falsify it. If a missing source contract cannot be resolved, keep
+that uncertainty instead of inventing a convenient default. A different candidate
+answer alone does not prove the original answer wrong.
+
 Notes have id, title, statement, kind (businessRule, datasetNote, analysisLesson),
 optional datasets/applicability, and evidence. Each evidence reference contains
 path (relative public original file), sha256 (exact original bytes), and excerpt
@@ -149,7 +156,10 @@ class ProfileLearningAdapter(AnswerQualityAdapter):
         for key in ("schema_version", "id", "project_id"):
             if profile.get(key) != self.initial_profile.get(key):
                 raise ValueError("Preserve the profile identity and native schema")
-        if any(note.get("scope", "selected") != "selected" for note in profile.get("notes", [])):
+        notes = profile.get("notes")
+        if not isinstance(notes, list) or any(not isinstance(note, dict) for note in notes):
+            raise ValueError("Knowledge notes must be native record objects in a list")
+        if any(note.get("scope", "selected") != "selected" for note in notes):
             raise ValueError("Learning can modify only the selected company profile")
         self.backend.validate_profile(profile)
 
