@@ -57,7 +57,11 @@ Notes have id, title, statement, kind (businessRule, datasetNote, analysisLesson
 optional datasets/applicability, and evidence. Each evidence reference contains
 path (relative public original file), sha256 (exact original bytes), and excerpt
 (a literal original-source excerpt, at most 8000 UTF-8 bytes). Do not invent source
-hashes. Read original files with Python hashlib if necessary. No foreign scope.
+hashes. If the host explicitly supplies reviewed supplements, they appear under
+profile-evidence/ in the source projection; use that same prefix in references.
+An optional url records HTTPS source attribution, never permission to fetch more
+material. Do not introduce supplements yourself. Read provided files with Python
+hashlib if necessary. No foreign scope.
 Company-specific names, schema definitions and procedures are allowed when
 supported by original evidence. Record uncertainty when a source is ambiguous.
 Do not memorize a question's answer, record a computed task result, or derive a
