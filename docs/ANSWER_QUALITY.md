@@ -150,6 +150,12 @@ Keep source definitions in current evidence, preserve prior reusable procedures,
 and use the per-domain experience library across tasks. Independent transfer
 checks remain necessary before any application-default change.
 
+Answer selection distinguishes supported positive and negative decisions from
+unresolved applicability. Missing support for one side does not prove the other;
+a negative decision requires an applicable criterion or an explicit complete-rule
+contract. This is general evidence guidance, not a benchmark-specific answer rule.
+Decisive answers remain preferable when their conditions are established.
+
 Numeric-answer selection includes the candidate's original authorized tool
 observations alongside its final answer. A final number or abstention alone is
 insufficient evidence of correct scope, rule eligibility or arithmetic. The
