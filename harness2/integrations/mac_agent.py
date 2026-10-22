@@ -33,6 +33,10 @@ class MacAgentError(RuntimeError):
     """The Mac Agent runtime rejected or could not resolve an evaluation run."""
 
 
+class MacAgentResponseLimitExceeded(MacAgentError):
+    """Observation exceeded the transport cap; this does not classify the native run."""
+
+
 class MacAgentObservationPending(MacAgentError):
     """An accepted run is still owned by its original host, not a failed task."""
 
@@ -283,7 +287,9 @@ class MacAgentClient:
                 f"Mac Agent API transport error ({type(exc).__name__}) for {method} {path}"
             ) from None
         if len(raw) > _MAX_BODY:
-            raise MacAgentError("Mac Agent API response exceeded the 2 MB evaluation limit")
+            raise MacAgentResponseLimitExceeded(
+                "Mac Agent API response exceeded the 2 MB evaluation limit"
+            )
         try:
             return json.loads(raw)
         except (UnicodeDecodeError, json.JSONDecodeError):

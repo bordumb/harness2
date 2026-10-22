@@ -14,6 +14,7 @@
 
 """Contract tests for Mac Agent's durable runtime adapter."""
 
+import io
 import json
 import threading
 import unittest
@@ -25,10 +26,22 @@ from harness2.integrations.mac_agent import (
     MacAgentClient,
     MacAgentError,
     MacAgentObservationPending,
+    MacAgentResponseLimitExceeded,
 )
 
 
 class MacAgentIntegrationTests(unittest.TestCase):
+    def test_response_cap_is_an_observation_error_without_repeating_the_request(self):
+        token = "synthetic-token-value-1234567890"
+        client = MacAgentClient("http://127.0.0.1:1", token, targets={})
+        with patch(
+            "harness2.integrations.mac_agent.urlopen", return_value=io.BytesIO(b"x" * 2_000_001)
+        ) as request:
+            with self.assertRaises(MacAgentResponseLimitExceeded) as raised:
+                client._request("/v1/runs/original")
+        self.assertEqual(request.call_count, 1)
+        self.assertNotIn(token, str(raised.exception))
+
     def test_observer_deadline_resumes_original_key_without_post_or_cancellation(self):
         client = MacAgentClient(
             "http://127.0.0.1:1", "synthetic-token-value-1234567890", targets={}
