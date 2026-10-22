@@ -56,6 +56,15 @@ Editing these text files requires no Git, build, dependency or test commands.
 Return concise <notes> explaining observed evidence and the proposed change.
 """
 
+DECISION_EVIDENCE_CHECKS = (
+    "Distinguish a supported positive decision, a supported negative decision, and unresolved applicability. "
+    "Missing evidence for a claim does not prove its opposite. A negative decision needs an applicable "
+    "criterion or an explicit complete-rule contract that warrants it; a measured condition alone "
+    "does not establish a different consequence. Reject unsupported affirmation and unsupported denial "
+    "equally. Prefer a decisive answer when the evidence establishes it, and preserve uncertainty "
+    "when neither decision is established."
+)
+
 
 class AnswerQualityBackend(Protocol):
     def describe(self) -> list[dict]: ...
@@ -132,12 +141,7 @@ class AnswerQualityAdapter:
                     "A short source projection may omit data available to the analyst; absence from that projection "
                     "is not proof the data does not exist. Neither confident wording nor abstention establishes correctness. "
                     "Name unresolved evidence rather than inventing support for a choice. "
-                    "Distinguish a supported positive decision, a supported negative decision, and unresolved applicability. "
-                    "Missing evidence for a claim does not prove its opposite. A negative decision needs an applicable "
-                    "criterion or an explicit complete-rule contract that warrants it; a measured condition alone "
-                    "does not establish a different consequence. Reject unsupported affirmation and unsupported denial "
-                    "equally. Prefer a decisive answer when the evidence establishes it, and preserve uncertainty "
-                    "when neither decision is established."
+                    + DECISION_EVIDENCE_CHECKS
                 ),
             ),
             channels={"proposer": channel, "selector": channel},

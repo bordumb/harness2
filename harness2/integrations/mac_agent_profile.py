@@ -13,7 +13,7 @@ from pathlib import Path
 from ..core import prompts, selection, tree
 from ..core.context import assert_tree_has_no_grader_verdicts
 from ..core.spec import BenchPrompts, BenchSpec, ChannelSpec
-from .answer_quality import AnswerQualityAdapter
+from .answer_quality import AnswerQualityAdapter, DECISION_EVIDENCE_CHECKS
 from .mac_agent import Candidate
 
 SURFACE = tree.SurfaceSpec(
@@ -133,7 +133,11 @@ class ProfileLearningAdapter(AnswerQualityAdapter):
                 dom_levers="Capture source-supported definitions, missing-data semantics and reusable procedures.",
                 yardstick="Answers must preserve population, grain, units, joins and uncertainty, with auditable calculations.",
                 domain_guidance="Distinguish missing company knowledge from general tool defects. Do not disguise a tool fix as a business fact.",
-                selection_checks="Inspect original calculations and evidence. Reject answer caches, invented source conventions and unsupported facts. Preserve valid uncertainty; confidence or abstention alone does not establish correctness.",
+                selection_checks=(
+                    "Inspect original calculations and evidence. Reject answer caches, invented source conventions "
+                    "and unsupported facts. Preserve valid uncertainty; confidence or abstention alone does not "
+                    "establish correctness. " + DECISION_EVIDENCE_CHECKS
+                ),
             ),
             channels={"proposer": channel, "selector": channel},
             leak_globs=(
