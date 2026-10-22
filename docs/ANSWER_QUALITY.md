@@ -223,3 +223,15 @@ separately from `deliverable_text`, which remains the verbatim authored output.
 Core selection labels that appendix and explicitly excludes its wrapper/evidence
 from answer-format checks. Mac Agent exposes original authorized calculations
 through this hook, with no independent judgments or native-record copies.
+
+
+Runtime hosts may declare `fixed_profile_runtime=True` to lock company knowledge,
+capabilities and retrieval while varying general prompt/tool guidance. The adapter
+then narrows proposal levers accordingly; the host remains responsible for rejecting
+source-fact memorization and authority changes. `finalize_development(depth=...)`
+preserves the actual recursion depth in selection/reflection (default one).
+
+A backend can implement `validate_configuration_run(run_dir, candidate)` to bind
+each proposed tree to its original native configuration before selection. Rejected
+bindings never enter selection or reflection. This supplements native journal/task
+validation; a plausible unexecuted instruction file is not evidence of improvement.

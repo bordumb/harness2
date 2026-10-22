@@ -128,6 +128,7 @@ class AnswerQualityAdapter:
         self.substrate = MacAgentSurface()
         self.cases = {case["id"]: case for case in backend.describe()}
         channel = ChannelSpec("codex_app_server", model)
+        fixed_profile = getattr(backend, "fixed_profile_runtime", False) is True
         self.spec = BenchSpec(
             name="mac-agent-answer-quality",
             runs_root=root / "runs",
@@ -135,10 +136,18 @@ class AnswerQualityAdapter:
             prompts=BenchPrompts(
                 work="answer a colleague's data and knowledge question using authorized original evidence",
                 domain_word="workload",
-                inv_levers="Edit systemprompt.md, tool_guidance.md and retrieval.json only. Keep source grants, provider and task unchanged.",
+                inv_levers=(
+                    "Edit systemprompt.md and tool_guidance.md only. Preserve retrieval.json, skills, company profile, source grants, provider and task."
+                    if fixed_profile else
+                    "Edit systemprompt.md, tool_guidance.md and retrieval.json only. Keep source grants, provider and task unchanged."
+                ),
                 dom_levers="Improve source discovery, date/scope interpretation, numerical reasoning and warranted uncertainty.",
                 yardstick="A useful answer is supported by original evidence, preserves units and scope, and identifies unresolved questions honestly.",
-                domain_guidance="Use observed trajectories to distinguish retrieval, context, reasoning and tool limitations. Do not prescribe a particular SQL implementation.",
+                domain_guidance=(
+                    "Use observed trajectories to distinguish retrieval, context, reasoning and tool limitations. Do not prescribe a particular SQL implementation."
+                    + (" This comparison fixes company knowledge, capabilities and retrieval. Only reusable prompt/tool guidance may change; do not edit retrieval.json or invent company facts."
+                       if fixed_profile else "")
+                ),
                 selection_checks=(
                     "Inspect each candidate's authorized tool observations and calculations, not just its final answer. "
                     "Check source definitions, rule populations, units, coverage and arithmetic. "
@@ -235,7 +244,7 @@ class AnswerQualityAdapter:
         return self.backend.judge(run_dir, task_id)
 
 
-def finalize_development(task_id, rollouts, trees, *, adapter, proposer, work_dir, library):
+def finalize_development(task_id, rollouts, trees, *, adapter, proposer, work_dir, library, depth=1):
     """Use core selection/reflection/library only after candidate validity checks.
 
     This function never calls an independent grader. A development library is not
@@ -243,21 +252,26 @@ def finalize_development(task_id, rollouts, trees, *, adapter, proposer, work_di
     """
     from ..core import selection
 
+    if type(depth) is not int or depth < 1:
+        raise ValueError("Declare the original recursion depth")
     adapter._development(task_id)
     eligible, rejected = {}, {}
     for label, view in rollouts.items():
         try:
             adapter.validate_run(task_id, view.run_dir)
             adapter.validate_tree(trees.get(label, {}))
+            verify = getattr(adapter.backend, "validate_configuration_run", None)
+            if verify is not None:
+                verify(view.run_dir, candidate_from_tree(trees.get(label, {})).as_dict())
         except ValueError as error:
             rejected[label] = str(error)
             continue
         eligible[label] = view
     if len(eligible) <= 1:
-        chosen = selection.trivial_selection(task_id, 1, "seq", eligible,
+        chosen = selection.trivial_selection(task_id, depth, "seq", eligible,
                                              adapter=adapter, work_dir=work_dir)
     else:
-        chosen = selection.run_selection(task_id, 1, "seq", eligible, adapter=adapter,
+        chosen = selection.run_selection(task_id, depth, "seq", eligible, adapter=adapter,
                                         prop=proposer, work_dir=work_dir)
     entry = None
     selected_tree = trees.get(chosen.chosen_label, {})

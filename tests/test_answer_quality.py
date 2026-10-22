@@ -327,6 +327,48 @@ class AnswerQualityTests(unittest.TestCase):
             self.assertEqual(len({call[2] for call in backend.calls}), 8)
             self.assertEqual(backend.judgments, 0)
 
+    def test_final_selection_and_reflection_preserve_declared_depth(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            backend = Backend(root)
+            adapter = AnswerQualityAdapter(root, backend, model="gpt-6-sol")
+            value = {"tool_guidance.md": "Honor the user's explicit raw response format."}
+            run = backend.execute("dev", candidate_from_tree(value).as_dict(), "candidate", 1)
+            experience = {"cue": "Exact response format", "lesson": "Honor the requested payload", "evidence": "Original deliverable"}
+            with patch("harness2.core.selection.reflect_adoption", return_value=experience) as reflect:
+                result = finalize_development(
+                    "dev", {"c2": RunView("c2", "candidate", run, True, True)}, {"c2": value},
+                    adapter=adapter, proposer=Mock(), work_dir=root / "selection",
+                    library=Library(root / "library", "recall", SURFACE), depth=2,
+                )
+            self.assertEqual(result["selection"]["k"], 2)
+            self.assertEqual(reflect.call_args.args[1].k, 2)
+            self.assertEqual(backend.judgments, 0)
+            with self.assertRaisesRegex(ValueError, "original recursion depth"):
+                finalize_development("dev", {}, {}, adapter=adapter, proposer=Mock(),
+                                     work_dir=root / "invalid", library=Mock(), depth=0)
+
+    def test_native_configuration_binding_rejects_an_untested_tree_before_selection(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            backend = Backend(root)
+            actual = {"tool_guidance.md": "Honor an explicit raw response contract."}
+            run = backend.execute("dev", candidate_from_tree(actual).as_dict(), "candidate", 1)
+            def verify(folder, claimed):
+                if backend.inspect(folder)["candidate"] != claimed:
+                    raise ValueError("Not the original native configuration")
+            backend.validate_configuration_run = verify
+            adapter = AnswerQualityAdapter(root, backend, model="gpt-6-sol")
+            proposer = Mock()
+            result = finalize_development(
+                "dev", {"c1": RunView("c1", "candidate", run, True, True)},
+                {"c1": {"tool_guidance.md": "An untested new instruction."}}, adapter=adapter,
+                proposer=proposer, work_dir=root / "selection", library=Mock(),
+            )
+            self.assertIn("original native configuration", result["rejected"]["c1"])
+            proposer.call.assert_not_called()
+            self.assertEqual(backend.judgments, 0)
+
     def test_candidates_are_runtime_effective_and_unsupported_surfaces_fail(self):
         self.assertEqual(candidate_from_tree({}).id, "builtin")
         candidate = candidate_from_tree(
