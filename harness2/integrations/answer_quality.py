@@ -47,6 +47,8 @@ task-specific dates, measured totals, intermediate calculations or task answers.
 Guidance must describe a reusable procedure; do not copy source schemas, filenames,
 business definitions, formulas or field-to-meaning mappings into runtime guidance.
 Tell the analyst how to establish the current definition from authorized evidence.
+Do not turn missing evidence in one case into a universal missing-record or default-value rule.
+Current sources can define explicit exemptions, exclusions or defaults; preserve those contracts.
 The analyst must read current source facts itself. Reading source files as proposer does not authorize embedding their
 contents into runtime instructions. Task-specific examples must be generalized.
 Preserve existing reusable procedures from earlier tasks unless current evidence
@@ -55,6 +57,20 @@ valuable across the workload. Use the experience library for that context.
 Editing these text files requires no Git, build, dependency or test commands.
 Return concise <notes> explaining observed evidence and the proposed change.
 """
+
+CALLER_CONTRACT_CHECKS = (
+    "Assess source support and caller-contract fidelity separately for every original case. "
+    "Correct reasoning does not excuse a final answer that violates required fields, types, "
+    "precision or permitted fallback forms. Read the original request and verbatim deliverable; "
+    "do not apply answer-format requirements to host evidence wrappers. "
+    "Preserve the caller's stated conditions for a fallback. Do not silently narrow or expand "
+    "them, invent a new uncertainty label, or confuse availability of a supported answer with "
+    "whether the question's topic is relevant. Prefer a supported result where one is available; "
+    "when none is established, express that limitation through the caller's permitted contract. "
+    "If no permitted form can truthfully represent the available evidence and no fallback exists, "
+    "identify that contract conflict rather than inventing a value for conformance."
+)
+
 
 DECISION_EVIDENCE_CHECKS = (
     "Distinguish a supported positive decision, a supported negative decision, and unresolved applicability. "
@@ -142,7 +158,7 @@ class AnswerQualityAdapter:
                     "Edit systemprompt.md, tool_guidance.md and retrieval.json only. Keep source grants, provider and task unchanged."
                 ),
                 dom_levers="Improve source discovery, date/scope interpretation, numerical reasoning and warranted uncertainty.",
-                yardstick="A useful answer is supported by original evidence, preserves units and scope, and identifies unresolved questions honestly.",
+                yardstick=("A useful answer is supported by original evidence, preserves units and scope, and identifies unresolved questions honestly. " + CALLER_CONTRACT_CHECKS),
                 domain_guidance=(
                     "Use observed trajectories to distinguish retrieval, context, reasoning and tool limitations. Do not prescribe a particular SQL implementation."
                     + (" This comparison fixes company knowledge, capabilities and retrieval. Only reusable prompt/tool guidance may change; do not edit retrieval.json or invent company facts."
@@ -154,7 +170,7 @@ class AnswerQualityAdapter:
                     "A short source projection may omit data available to the analyst; absence from that projection "
                     "is not proof the data does not exist. Neither confident wording nor abstention establishes correctness. "
                     "Name unresolved evidence rather than inventing support for a choice. "
-                    + DECISION_EVIDENCE_CHECKS
+                    + DECISION_EVIDENCE_CHECKS + " " + CALLER_CONTRACT_CHECKS
                 ),
             ),
             channels={"proposer": channel, "selector": channel},

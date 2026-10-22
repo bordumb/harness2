@@ -327,6 +327,52 @@ class AnswerQualityTests(unittest.TestCase):
             self.assertEqual(len({call[2] for call in backend.calls}), 8)
             self.assertEqual(backend.judgments, 0)
 
+    def test_seeded_baseline_remains_selectable_after_both_recursion_modes(self):
+        from harness2.core.recursion import run_parallel
+        for mode in (run_sequential, run_parallel):
+            with self.subTest(mode=mode.__name__), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                backend = Backend(root)
+                incumbent = {"systemprompt.md": "Keep current original evidence authoritative.",
+                             "tool_guidance.md": "Read the current source."}
+                adapter = AnswerQualityAdapter(root / "adapter", backend, model="gpt-6-sol",
+                                               initial_tree=incumbent)
+                seed = tree.read_tree(SURFACE, adapter.base_harness())
+                run = adapter.execute("dev", None, "original-incumbent")
+                view = RunView("base1", "original-incumbent", run, True, True)
+                result = mode("dev", 1, [view], adapter=adapter,
+                              prop=ControlledProposer(adapter.spec.channels["proposer"]),
+                              work_dir=root / "recursion", run_id_of=lambda label: "run-" + label,
+                              base_tree=seed, propose_workers=1, rollout_workers=1)
+                self.assertTrue(result.ok, result.errors)
+                self.assertEqual(result.trees["base1"], seed)
+                self.assertIsNot(result.trees["base1"], seed)
+                def verify(folder, candidate):
+                    if backend.inspect(folder)["candidate"] != candidate:
+                        raise ValueError("Not the original native configuration")
+                backend.validate_configuration_run = verify
+                original_inspect = backend.inspect
+                def inspect(folder):
+                    info = original_inspect(folder)
+                    if Path(folder) == run:
+                        info = {**info, "deliverables": {"answer.md": "Original incumbent answer."}}
+                    return info
+                backend.inspect = inspect
+                def select(mission, context_dir, label, **kwargs):
+                    candidates = sorted((Path(context_dir) / "candidates").glob("*.md"))
+                    original = next(path for path in candidates
+                                    if "Original incumbent answer." in path.read_text())
+                    return Reply(label=label, text="```choice\n" + original.stem + "\n```",
+                                 ok=True, attempts=1)
+                proposer = Mock(); proposer.call.side_effect = select
+                with patch("harness2.core.selection.reflect_adoption", return_value={}):
+                    selected = finalize_development(
+                        "dev", result.rollouts, result.trees, adapter=adapter, proposer=proposer,
+                        work_dir=root / "selection", library=Mock(), depth=1)
+                self.assertNotIn("base1", selected["rejected"])
+                self.assertEqual(selected["selection"]["chosen_label"], "base1")
+                self.assertEqual(backend.judgments, 0)
+
     def test_final_selection_and_reflection_preserve_declared_depth(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

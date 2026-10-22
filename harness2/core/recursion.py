@@ -376,6 +376,7 @@ def run_parallel(
         ledger.rollout(r.label)
     result = ModeResult(mode="agg", task_id=task_id, k=k, ledger=ledger)
     result.rollouts.update({r.label: r for r in base})
+    result.trees.update({r.label: dict(base_tree) for r in base})
     ctx_dir = work_dir / "context"
     benchmark_prompts = resolve_prompts(adapter, task_id)
     base_dir = harness_tree.write_tree(surface, base_tree, work_dir / "harnesses" / "base")
@@ -486,6 +487,7 @@ def run_sequential(
         ledger.rollout(r.label)
     result = ModeResult(mode="seq", task_id=task_id, k=k, ledger=ledger)
     result.rollouts.update({r.label: r for r in base})
+    result.trees.update({r.label: dict(base_tree) for r in base})
     ctx_dir = work_dir / "context"
     benchmark_prompts = resolve_prompts(adapter, task_id)
 
