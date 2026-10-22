@@ -174,6 +174,18 @@ class AnswerQualityAdapter:
     def base_harness(self):
         return self._base
 
+    def validate_run(self, task_id, run_dir):
+        case = self._development(task_id)
+        inspected = self.backend.inspect(run_dir)
+        if inspected.get("task_id") != task_id or inspected.get("question") != case["question"]:
+            raise ValueError("Execution evidence belongs to a different task or question")
+
+    def validate_baseline(self, task_id, view):
+        self.validate_run(task_id, view.run_dir)
+        expected = candidate_from_tree(tree.read_tree(SURFACE, self._base)).as_dict()
+        if self.backend.inspect(view.run_dir).get("candidate") != expected:
+            raise ValueError("Baseline execution used a different harness configuration")
+
     def validate_tree(self, value):
         candidate = candidate_from_tree(value)
         validate = getattr(self.backend, "validate_candidate", None)
@@ -220,6 +232,7 @@ def finalize_development(task_id, rollouts, trees, *, adapter, proposer, work_di
     eligible, rejected = {}, {}
     for label, view in rollouts.items():
         try:
+            adapter.validate_run(task_id, view.run_dir)
             adapter.validate_tree(trees.get(label, {}))
         except ValueError as error:
             rejected[label] = str(error)

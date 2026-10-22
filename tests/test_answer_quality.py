@@ -44,7 +44,12 @@ class Backend:
         return path
 
     def inspect(self, run_dir):
+        call = next(call for call in reversed(self.calls) if call[2] == Path(run_dir).name)
+        task_id = call[0]
         return {
+            "task_id": task_id,
+            "question": next(case["question"] for case in self.describe() if case["id"] == task_id),
+            "candidate": call[1],
             "delivered": True,
             "trajectory": "[ACTION] Read original note\n[OBSERVATION] Team chose UTC",
             "deliverables": {"answer.md": "The team chose UTC."},
@@ -73,6 +78,48 @@ class ControlledProposer(Proposer):
 
 
 class AnswerQualityTests(unittest.TestCase):
+    def test_wrong_task_or_changed_question_is_rejected_before_proposal_or_selection(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            backend = Backend(root)
+            adapter = AnswerQualityAdapter(root, backend, model="gpt-6-sol")
+            run = backend.execute("hidden", {}, "foreign", 1)
+            view = RunView("base", "foreign", run, True, True)
+            proposer = Mock()
+            from harness2.core.recursion import run_parallel
+            for function in (run_sequential, run_parallel):
+                with self.assertRaisesRegex(ValueError, "different task or question"):
+                    function("dev", 1, [view], adapter=adapter, prop=proposer,
+                             work_dir=root / "invalid", run_id_of=lambda x: x, base_tree={})
+            good = backend.execute("dev", {}, "good", 1)
+            original = backend.inspect
+            backend.inspect = lambda p: {**original(p), "question": "A different request"}
+            with self.assertRaisesRegex(ValueError, "different task or question"):
+                adapter.validate_run("dev", good)
+            backend.inspect = original
+            result = finalize_development("dev", {"base": view}, {"base": {}}, adapter=adapter,
+                                          proposer=proposer, work_dir=root / "selection",
+                                          library=Library(root / "library", "recall", SURFACE))
+            self.assertIn("different task", result["rejected"]["base"])
+            proposer.call.assert_not_called()
+            self.assertEqual(backend.judgments, 0)
+            self.assertFalse((root / "invalid").exists())
+
+    def test_matching_task_with_a_different_executed_baseline_harness_is_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            backend = Backend(root)
+            adapter = AnswerQualityAdapter(root, backend, model="gpt-6-sol")
+            changed = candidate_from_tree({"tool_guidance.md": "Read original definitions."}).as_dict()
+            run = backend.execute("dev", changed, "different-harness", 1)
+            proposer = Mock()
+            with self.assertRaisesRegex(ValueError, "different harness configuration"):
+                run_sequential("dev", 1, [RunView("base", "different-harness", run, True, True)],
+                               adapter=adapter, prop=proposer, work_dir=root / "invalid",
+                               run_id_of=lambda x: x, base_tree={})
+            proposer.call.assert_not_called()
+            self.assertFalse((root / "invalid").exists())
+
     def test_selection_receives_calculations_without_judgments_or_native_records(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

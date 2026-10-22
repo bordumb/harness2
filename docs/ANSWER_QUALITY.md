@@ -156,3 +156,12 @@ insufficient evidence of correct scope, rule eligibility or arithmetic. The
 selector must inspect those observations; a documentation-only source projection
 is not proof that omitted source data was unavailable to the analyst. Native
 journals and independent judgments are never copied into candidate evidence.
+
+A retained baseline must belong to the current task and exact question and must
+have executed the adapter's initial harness configuration. The backend's
+`inspect()` supplies `task_id`, `question` and canonical `candidate` metadata;
+the native backend validates these against its retained execution pin. Sequential
+and parallel recursion reject mismatches before creating proposer context or
+starting inference. Final selection also excludes evidence from another task.
+Reusing an original terminal baseline is supported; relabeling unrelated evidence
+is not.
