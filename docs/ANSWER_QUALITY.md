@@ -165,3 +165,34 @@ and parallel recursion reject mismatches before creating proposer context or
 starting inference. Final selection also excludes evidence from another task.
 Reusing an original terminal baseline is supported; relabeling unrelated evidence
 is not.
+
+## Scoped company-profile learning
+
+`harness2.integrations.mac_agent_profile.ProfileLearningAdapter` provides a
+separate `profile.json` surface for saved Knowledge and native Capabilities.
+It reuses the same sequential/parallel recursion, context construction, selection
+and library machinery. It does not translate company definitions into global
+instructions. The existing `AnswerQualityAdapter` remains the general runtime
+instruction surface.
+
+The host backend implements `validate_profile`, `execute_profile`, `inspect`,
+`judge`, `describe` and `comparison_identity`. It must validate original public
+source excerpts/hashes, import production stores, freeze native assets once,
+clone them for isolated executions, and verify immutability after execution.
+`inspect` returns the original native task/question/candidate, authorized tool
+observations, `profile_spec_sha256` (canonical specification hash), and the pinned
+comparison identity. The adapter rejects incompatible products, grants, models,
+source banks, changed profile identities and prompt overlays before recursion.
+
+Pass the initial saved specification as `{"profile.json": json.dumps(spec)}`.
+Use `run_sequential` or `run_parallel` unchanged and `finalize_profile` afterward.
+Finalization validates each rollout against its actual profile tree and selects
+using calculations and original observations. Scoring remains separate. A library
+entry is a development proposal, not adoption into the user's profile. Native
+source-grounding checks supplement semantic review; they cannot certify arbitrary
+company facts or detect every disguised answer cache.
+
+The host owns a single execution budget across all proposed profiles. Installing
+a capability does not expand authority or automatically activate guidance. Company
+facts may be learned from authorized sources; private answers, assessor outputs,
+operator conversation context and question-to-answer caches remain excluded.
