@@ -43,8 +43,15 @@ Before editing, identify an observable causal weakness in the original calculati
 or source use. Adding a fact the analyst already used correctly is not evidence
 of improvement. State the operation the new asset should change and the source
 check that could falsify it. If a missing source contract cannot be resolved, keep
-that uncertainty instead of inventing a convenient default. A different candidate
-answer alone does not prove the original answer wrong.
+that uncertainty instead of inventing a convenient default. Missing documentation
+does not rule out a useful, explicitly conditional analysis. You may save a working
+hypothesis derived from observable source patterns, provided the statement and
+applicability explicitly label it as unconfirmed. Include its supporting evidence,
+counterevidence or plausible alternatives, a falsifying check, and a requirement to
+compare consequential interpretations in the calculation. Do not promote that
+hypothesis to a confirmed company rule. Review/provenance metadata alone does not
+express this distinction. A different candidate answer alone does not prove the
+original answer wrong; never choose an interpretation from expected-answer agreement.
 
 Notes have id, title, statement, kind (businessRule, datasetNote, analysisLesson),
 optional datasets/applicability, and evidence. Each evidence reference contains

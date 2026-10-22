@@ -156,6 +156,10 @@ unresolved applicability. Missing support for one side does not prove the other;
 a negative decision requires an applicable criterion or an explicit complete-rule
 contract. This is general evidence guidance, not a benchmark-specific answer rule.
 Decisive answers remain preferable when their conditions are established.
+Incomplete documentation may still support useful conditional calculations.
+Selectors distinguish an explicitly labelled source-derived working hypothesis
+from a confirmed rule, checking support, alternatives, sensitivity and falsifying
+evidence. Neither a silent default nor blanket abstention earns preference.
 
 Numeric-answer selection includes the candidate's original authorized tool
 observations alongside its final answer. A final number or abstention alone is
@@ -203,6 +207,10 @@ The host owns a single execution budget across all proposed profiles. Installing
 a capability does not expand authority or automatically activate guidance. Company
 facts may be learned from authorized sources; private answers, assessor outputs,
 operator conversation context and question-to-answer caches remain excluded.
+An unconfirmed interpretation must say so in its Knowledge statement and
+applicability; review metadata describes provenance rather than certainty. Its
+source support, alternatives and required sensitivity checks must remain visible
+to the native analyst. Agreement with a reference answer cannot establish a rule.
 
 Finalization now keeps the original recursion `depth` in selection/reflection
 metadata and materializes only profile trees verified against their native runs.

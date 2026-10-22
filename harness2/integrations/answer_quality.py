@@ -62,7 +62,11 @@ DECISION_EVIDENCE_CHECKS = (
     "criterion or an explicit complete-rule contract that warrants it; a measured condition alone "
     "does not establish a different consequence. Reject unsupported affirmation and unsupported denial "
     "equally. Prefer a decisive answer when the evidence establishes it, and preserve uncertainty "
-    "when neither decision is established."
+    "when neither decision is established. A conditional calculation under an explicitly labelled, "
+    "source-derived working hypothesis can be useful without establishing the hypothesis as fact. "
+    "Check its observable support, plausible alternatives, sensitivity and falsifying evidence. "
+    "Reject silent defaults and claims of certainty unsupported by those checks; do not prefer "
+    "blanket abstention over a sound conditional analysis merely because documentation is incomplete."
 )
 
 
