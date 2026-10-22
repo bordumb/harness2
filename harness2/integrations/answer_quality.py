@@ -208,12 +208,13 @@ class AnswerQualityAdapter:
         return self.backend.inspect(run_dir)["deliverables"]
 
     def deliverable_text(self, run_dir):
-        # A numeric answer alone cannot establish whether the calculation used
-        # the right population. Export the same authorized tool evidence used by
-        # proposal/composition, never the independent judgment or native journal.
-        inspected = self.backend.inspect(run_dir)
-        answer = "\n\n".join(inspected["deliverables"].values())
-        return answer + "\n\n## Authorized tool observations\n\n" + inspected["trajectory"]
+        # Preserve the exact authored output for conformance and reflection.
+        return "\n\n".join(self.backend.inspect(run_dir)["deliverables"].values())
+
+    def selection_evidence(self, run_dir):
+        # Separate observer-supplied calculations from the authored final answer.
+        # The core labels this appendix explicitly; private judgments stay out.
+        return self.backend.inspect(run_dir)["trajectory"]
 
     def score(self, run_dir, task_id):
         self._development(task_id)

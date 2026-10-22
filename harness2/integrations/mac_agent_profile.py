@@ -195,23 +195,42 @@ class ProfileLearningAdapter(AnswerQualityAdapter):
             raise ValueError("Execution used a different saved profile")
 
 
-def finalize_profile(task_id, rollouts, trees, *, adapter, proposer, work_dir, library=None):
+def finalize_profile(
+    task_id, rollouts, trees, *, adapter, proposer, work_dir, library=None, depth=1
+):
     """Select using native evidence, never grades; return a proposal for host review."""
+    if type(depth) is not int or depth < 1:
+        raise ValueError("Declare the original recursion depth")
     eligible, rejected = {}, {}
     for label, view in rollouts.items():
         try:
             adapter.validate_profile_run(task_id, view.run_dir, trees[label])
+            # Reflection expects task-local harnesses next to its work directory.
+            # Materialize only trees verified against the original native profile.
+            harnesses = (Path(work_dir) / "harnesses").resolve()
+            target = (harnesses / label).resolve()
+            if not target.is_relative_to(harnesses):
+                raise ValueError("Candidate label escapes its reflection harness directory")
+            if target.exists():
+                if profile_from_tree(tree.read_tree(SURFACE, target)) != profile_from_tree(
+                    trees[label]
+                ):
+                    raise ValueError(
+                        "Retained reflection harness differs from the original profile"
+                    )
+            else:
+                tree.write_tree(SURFACE, trees[label], target)
         except (KeyError, ValueError) as error:
             rejected[label] = str(error)
             continue
         eligible[label] = view
     if len(eligible) <= 1:
         chosen = selection.trivial_selection(
-            task_id, 1, "seq", eligible, adapter=adapter, work_dir=work_dir
+            task_id, depth, "seq", eligible, adapter=adapter, work_dir=work_dir
         )
     else:
         chosen = selection.run_selection(
-            task_id, 1, "seq", eligible, adapter=adapter, prop=proposer, work_dir=work_dir
+            task_id, depth, "seq", eligible, adapter=adapter, prop=proposer, work_dir=work_dir
         )
     entry = None
     if (

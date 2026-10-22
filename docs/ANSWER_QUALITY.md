@@ -196,3 +196,15 @@ The host owns a single execution budget across all proposed profiles. Installing
 a capability does not expand authority or automatically activate guidance. Company
 facts may be learned from authorized sources; private answers, assessor outputs,
 operator conversation context and question-to-answer caches remain excluded.
+
+Finalization now keeps the original recursion `depth` in selection/reflection
+metadata and materializes only profile trees verified against their native runs.
+Reflection therefore receives actual selected/base/candidate files even when its
+working directory differs from recursion's. Historical missing-harness reflections
+remain historical evidence, not silently repaired adoption records.
+
+The optional adapter hook `selection_evidence(run_dir)` supplies host observations
+separately from `deliverable_text`, which remains the verbatim authored output.
+Core selection labels that appendix and explicitly excludes its wrapper/evidence
+from answer-format checks. Mac Agent exposes original authorized calculations
+through this hook, with no independent judgments or native-record copies.

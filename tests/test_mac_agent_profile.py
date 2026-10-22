@@ -201,7 +201,8 @@ class ProfileAdapterTests(unittest.TestCase):
         rendered = "\n".join(p.read_text() for p in built.root.rglob("*") if p.is_file())
         self.assertIn("null stock is unknown", rendered)
         self.assertNotIn("DO_NOT_COPY", rendered)
-        self.assertIn("authorized", self.adapter.deliverable_text(path).lower())
+        self.assertEqual(self.adapter.deliverable_text(path), "Unknown, not zero.")
+        self.assertIn("null stock is unknown", self.adapter.selection_evidence(path))
         value = as_tree({**initial(), "review": "Wrong profile"})
         result = finalize_profile(
             "dev",
@@ -236,6 +237,94 @@ class ProfileAdapterTests(unittest.TestCase):
         }
         with self.assertRaisesRegex(ValueError, "runtime instructions"):
             self.adapter.validate_run("dev", path)
+
+    def test_reflection_receives_verified_profile_files_and_preserves_depth(self):
+        from harness2.core.library import Library
+
+        value = initial()
+        value["notes"] = [{"statement": "Null stock means unknown."}]
+        path = self.backend.execute_profile("dev", value, "candidate", 1)
+        library = Library(self.root / "library", "inventory", SURFACE)
+
+        def reflect(mission, context_dir, label, **kwargs):
+            root = Path(context_dir)
+            selected = json.loads((root / "harness/profile.json").read_text())
+            base = json.loads((root / "base_harness/profile.json").read_text())
+            pooled = json.loads((root / "pool/c1/harness/profile.json").read_text())
+            self.assertEqual(selected, value)
+            self.assertEqual(pooled, value)
+            self.assertEqual(base, initial())
+            return Reply(
+                label=label,
+                text="<edits>Added original inventory semantics.</edits><experience>cue: Missing inventory meaning\nlesson: Preserve sourced definitions\nevidence: Original manual and native observations</experience>",
+                ok=True,
+                attempts=1,
+            )
+
+        prop = Mock()
+        prop.call.side_effect = reflect
+        result = finalize_profile(
+            "dev",
+            {"c1": RunView("c1", "candidate", path, True, True)},
+            {"c1": as_tree(value)},
+            adapter=self.adapter,
+            proposer=prop,
+            work_dir=self.root / "separate-finalization",
+            library=library,
+            depth=2,
+        )
+        self.assertEqual(result["selection"]["k"], 2)
+        self.assertIsNotNone(result["library_entry"])
+        prop.call.assert_called_once()
+        self.assertEqual(self.backend.judgments, 0)
+        with self.assertRaisesRegex(ValueError, "recursion depth"):
+            finalize_profile(
+                "dev",
+                {},
+                {},
+                adapter=self.adapter,
+                proposer=prop,
+                work_dir=self.root / "invalid",
+                depth=0,
+            )
+
+    def test_multi_candidate_selection_keeps_depth_and_separates_evidence_from_answers(self):
+        base = self.adapter.execute("dev", None, "base")
+        value = initial()
+        value["notes"] = [{"statement": "Null stock means unknown."}]
+        candidate = self.backend.execute_profile("dev", value, "candidate", 1)
+
+        def choose(mission, context_dir, label, **kwargs):
+            self.assertEqual(label, "select.seq2")
+            for path in (Path(context_dir) / "candidates").glob("*.md"):
+                text = path.read_text()
+                self.assertIn("Original agent-authored deliverable (verbatim)", text)
+                self.assertIn("Harness-supplied execution evidence", text)
+                self.assertIn("Do not apply the task's answer-format requirements", text)
+            return Reply(
+                label=label,
+                text="```choice\nA\n```\n<why>Original evidence supports the result.</why>",
+                ok=True,
+                attempts=1,
+            )
+
+        prop = Mock()
+        prop.call.side_effect = choose
+        result = finalize_profile(
+            "dev",
+            {
+                "base": RunView("base", "base", base, True, True),
+                "c1": RunView("c1", "candidate", candidate, True, True),
+            },
+            {"base": as_tree(initial()), "c1": as_tree(value)},
+            adapter=self.adapter,
+            proposer=prop,
+            work_dir=self.root / "choice",
+            depth=2,
+        )
+        self.assertEqual(result["selection"]["k"], 2)
+        self.assertTrue(result["selection"]["ok"])
+        self.assertEqual(self.backend.judgments, 0)
 
     def test_malformed_note_collections_fail_as_actionable_validation_errors(self):
         for notes in (None, "not a list", ["not a record"], [None]):

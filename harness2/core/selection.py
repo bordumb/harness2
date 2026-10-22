@@ -196,6 +196,19 @@ def _write_candidates(
     asset_names: set[str] = set()
     for anon, lbl in sel.id_map.items():
         text = artifacts[lbl]
+        evidence_fn = getattr(adapter, "selection_evidence", None)
+        if callable(evidence_fn):
+            evidence = str(evidence_fn(pool[lbl].run_dir) or "")
+            if evidence:
+                text = (
+                    "# Original agent-authored deliverable (verbatim)\n\n"
+                    + text
+                    + "\n\n# Harness-supplied execution evidence\n\n"
+                    "This appendix is supplied by the host, not written as part of the final answer. "
+                    "Use it to assess calculations and source support. Do not apply the task's "
+                    "answer-format requirements to this appendix or these wrapper headings.\n\n"
+                    + evidence
+                )
         assets: list[Path] = []
         if callable(asset_fn):
             assets = [Path(a) for a in (asset_fn(pool[lbl].run_dir) or []) if Path(a).is_file()]
