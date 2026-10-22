@@ -54,13 +54,15 @@ def _redact(value: str) -> str:
 
 @dataclass(frozen=True)
 class Candidate:
-    """Schema-2 host configuration, never text appended to an evaluation task."""
+    """Versioned host configuration, never text appended to an evaluation task."""
 
     id: str
     prompt_guidance: str = ""
     tool_guidance: str = ""
     skills: tuple[str, ...] = ()
     retrieval_settings: dict[str, int] | None = None
+    schema_version: int = 2
+    policies: dict[str, Any] | None = None
 
     @classmethod
     def load(cls, value: dict[str, Any]) -> Candidate:
@@ -73,15 +75,16 @@ class Candidate:
             "tool_guidance",
             "skills",
             "retrieval_settings",
+            "policies",
         }
         unknown = set(value) - allowed
         if unknown:
             raise ValueError(
                 f"candidate contains non-allowlisted fields: {', '.join(sorted(unknown))}"
             )
-        if type(value.get("schema_version")) is not int or value["schema_version"] != 2:
+        if type(value.get("schema_version")) is not int or value["schema_version"] not in (2, 3):
             raise ValueError(
-                "candidate schema_version must be 2; task-augmentation schema 1 is unsupported"
+                "candidate schema_version must be 2 or 3; task-augmentation schema 1 is unsupported"
             )
         candidate_id = value.get("id")
         if not isinstance(candidate_id, str) or not re.fullmatch(
@@ -112,11 +115,26 @@ class Candidate:
             type(item) is not int or not 0 <= item <= bounds[key] for key, item in retrieval.items()
         ):
             raise ValueError("retrieval_settings values must be bounded whole numbers")
-        return cls(candidate_id, prompt, tools, tuple(skills), dict(retrieval))
+        if value["schema_version"] == 2 and "policies" in value:
+            raise ValueError("Native policies require schema 3")
+        from .native_policy import normalize_policies
+
+        policies = (
+            normalize_policies(value.get("policies", {})) if value["schema_version"] == 3 else None
+        )
+        return cls(
+            candidate_id,
+            prompt,
+            tools,
+            tuple(skills),
+            dict(retrieval),
+            value["schema_version"],
+            policies,
+        )
 
     def as_dict(self) -> dict[str, Any]:
-        return {
-            "schema_version": 2,
+        result = {
+            "schema_version": self.schema_version,
             "id": self.id,
             "prompt_guidance": self.prompt_guidance,
             "tool_guidance": self.tool_guidance,
@@ -126,6 +144,13 @@ class Candidate:
                 **(self.retrieval_settings or {}),
             },
         }
+        if self.schema_version == 3:
+            from .native_policy import normalize_policies
+
+            result["policies"] = normalize_policies(
+                self.policies if self.policies is not None else {}
+            )
+        return result
 
     @property
     def fingerprint(self) -> str:
@@ -320,10 +345,12 @@ class MacAgentClient:
         configured = self._request("/v1/runtime/harness")
         if (
             not isinstance(configured, dict)
-            or configured.get("schema_version") != 2
+            or configured.get("schema_version") != candidate.schema_version
             or configured.get("fingerprint") != candidate.fingerprint
         ):
-            raise MacAgentError("The selected host does not expose this schema-2 runtime candidate")
+            raise MacAgentError(
+                "The selected host does not expose this versioned runtime candidate"
+            )
         payload = {
             "text": task,
             "user_initiated": True,
