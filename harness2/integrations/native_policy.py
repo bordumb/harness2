@@ -5,12 +5,18 @@ These fields select compiled Swift policies. They grant no tools or source acces
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 
 def normalize_policies(value: Any) -> dict[str, Any]:
-    if not isinstance(value, dict) or set(value) - {"results", "context", "discovery"}:
-        raise ValueError("policies must contain only results, context and discovery")
+    if not isinstance(value, dict) or set(value) - {
+        "results",
+        "context",
+        "discovery",
+        "observations",
+    }:
+        raise ValueError("policies must contain only supported native policy fields")
     specifications = {
         "results": (
             "retained-results",
@@ -71,4 +77,45 @@ def normalize_policies(value: Any) -> dict[str, Any]:
         ):
             raise ValueError("Preview must fit spill threshold and retained quota")
         normalized[family] = dict(entry)
+    observations = normalize_observations(value.get("observations"))
+    # Keep existing schema-3 canonical fingerprints unchanged when omitted.
+    if observations:
+        normalized["observations"] = observations
+    return normalized
+
+
+def normalize_observations(value: Any) -> list[dict[str, Any]]:
+    if value is None:
+        return []
+    if not isinstance(value, list) or len(value) > 8:
+        raise ValueError("Use at most eight compiled outcome observers")
+    normalized = []
+    seen = set()
+
+    def valid_id(item):
+        return isinstance(item, str) and bool(re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,99}", item))
+
+    for entry in value:
+        if not isinstance(entry, dict) or set(entry) - {"id", "version", "dependencies"}:
+            raise ValueError("Use only declared observer identity fields")
+        name = entry.get("id")
+        if (
+            not valid_id(name)
+            or name in seen
+            or type(entry.get("version")) is not int
+            or entry["version"] != 1
+        ):
+            raise ValueError("Unsupported or duplicate outcome observer identity")
+        dependencies = entry.get("dependencies")
+        if dependencies is None:
+            dependencies = []
+        if (
+            not isinstance(dependencies, list)
+            or len(dependencies) > 16
+            or any(not valid_id(item) for item in dependencies)
+            or len(set(dependencies)) != len(dependencies)
+        ):
+            raise ValueError("Use unique bounded observer dependency identities")
+        seen.add(name)
+        normalized.append({"id": name, "version": 1, "dependencies": sorted(dependencies)})
     return normalized

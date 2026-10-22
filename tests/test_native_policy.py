@@ -69,6 +69,50 @@ class NativePolicyTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             Candidate.load(config)
 
+    def test_observers_are_pinned_without_changing_omitted_policy_fingerprints(self):
+        original = configuration()
+        baseline = Candidate.load(original)
+        for value in (None, []):
+            config = configuration()
+            config["policies"]["observations"] = value
+            self.assertEqual(Candidate.load(config).fingerprint, baseline.fingerprint)
+        config = {
+            "schema_version": 3,
+            "id": "observed-turn",
+            "policies": {
+                "observations": [
+                    {"id": "base", "version": 1},
+                    {"id": "dependent", "version": 1, "dependencies": ["base"]},
+                ]
+            },
+        }
+        candidate = Candidate.load(config)
+        self.assertEqual(
+            candidate.fingerprint,
+            "18ab557c456eae1c3f5fef01ce1cd7643c3ec187a74f235f4c1b3ce5ab60fe45",
+        )
+        self.assertNotEqual(candidate.fingerprint, baseline.fingerprint)
+        self.assertEqual(Candidate.load(candidate.as_dict()).fingerprint, candidate.fingerprint)
+        config["policies"]["observations"][0]["id"] = "changed"
+        self.assertEqual(candidate.as_dict()["policies"]["observations"][0]["id"], "base")
+
+    def test_observer_identity_limits_reject_authority_and_ambiguous_dependencies(self):
+        for value in (
+            "observer",
+            [{}],
+            [{"id": "x", "version": True}],
+            [{"id": "x", "version": 2}],
+            [{"id": "../x", "version": 1}],
+            [{"id": "x", "version": 1, "grant": "all"}],
+            [{"id": "x", "version": 1, "dependencies": ["a", "a"]}],
+            [{"id": "x", "version": 1}] * 2,
+            [{"id": "x", "version": 1, "dependencies": [True]}],
+        ):
+            config = configuration()
+            config["policies"]["observations"] = value
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                Candidate.load(config)
+
     def test_native_host_version_mismatch_is_rejected_before_submission(self):
         client = MacAgentClient(
             "http://127.0.0.1:1", "synthetic-token-value-1234567890", targets={}
