@@ -51,6 +51,10 @@ Do not turn missing evidence in one case into a universal missing-record or defa
 Current sources can define explicit exemptions, exclusions or defaults; preserve those contracts.
 The analyst must read current source facts itself. Reading source files as proposer does not authorize embedding their
 contents into runtime instructions. Task-specific examples must be generalized.
+Treat learned harness instructions as editable hypotheses, not authority over the
+original request or current sources. Check existing clauses for conflicting or
+narrowed conditions before adding a new check. Correct or remove a conflicting
+clause; appending another instruction while retaining the conflict is not a repair.
 Preserve existing reusable procedures from earlier tasks unless current evidence
 shows they conflict. A procedure need not be relevant to this single task to be
 valuable across the workload. Use the experience library for that context.
@@ -63,6 +67,9 @@ CALLER_CONTRACT_CHECKS = (
     "Correct reasoning does not excuse a final answer that violates required fields, types, "
     "precision or permitted fallback forms. Read the original request and verbatim deliverable; "
     "do not apply answer-format requirements to host evidence wrappers. "
+    "Interpret template placeholders using the value described by the request. A placeholder label "
+    "is not automatically a fixed schema key, enum or type constraint. Preserve explicit schema "
+    "keys and constraints when supplied, but do not invent a conflict from a placeholder name alone. "
     "Preserve the caller's stated conditions for a fallback. Do not silently narrow or expand "
     "them, invent a new uncertainty label, or confuse availability of a supported answer with "
     "whether the question's topic is relevant. Prefer a supported result where one is available; "
